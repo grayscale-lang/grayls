@@ -1,0 +1,285 @@
+# EZLS — EZ Language Server
+
+A Language Server Protocol (LSP) implementation for the [EZ programming language](https://github.com/SchoolyB/EZ).
+
+## Features
+
+- **Diagnostics** — inline errors and warnings powered by `ez`
+- **Completion** — keywords, types, builtins, stdlib modules, and in-file symbols
+- **Hover docs** — documentation for all EZ keywords, types, and builtins
+- **Go to definition** — jump to `mut`, `const`, `func`, `struct`, and `enum` declarations within the current file
+
+---
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org) v18 or later
+- `ez` on your `$PATH` (required for diagnostics — all other features work without it)
+
+Verify both:
+
+```sh
+node --version
+ez
+```
+
+---
+
+## Build
+
+```sh
+git clone https://github.com/ez-lang/EZLS
+cd EZLS
+npm install
+npm run build
+```
+
+The compiled server lands in `out/server.js`.
+
+---
+
+## Editor Setup
+
+### VS Code
+
+Install the extension once as a `.vsix` package. After that it activates automatically whenever you open a `.ez` file — no extra steps.
+
+```sh
+cd /path/to/EZLS
+npm install -g @vscode/vsce
+npm run build
+vsce package          # produces ezls-0.1.0.vsix
+code --install-extension ezls-0.1.0.vsix
+```
+
+Or install via the VS Code UI: **Extensions → ⋯ → Install from VSIX…**
+
+**After updating server code:** rebuild and reinstall:
+
+```sh
+npm run build && vsce package && code --install-extension ezls-0.1.0.vsix
+```
+
+Then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
+
+> **For extension development only:** press **F5** in the EZLS folder to open an Extension Development Host window. This is for debugging the extension itself, not for daily use.
+
+---
+
+### Zed
+
+Zed requires a small dev extension (in the `zed-extension/` folder of this repo) to register the EZ language and syntax highlighting.
+
+**Step 1:** Build EZLS:
+
+```sh
+npm run build
+```
+
+**Step 2:** Install the dev extension in Zed:
+
+- `Cmd+Shift+P` → **"zed: install dev extension"**
+- Select the `zed-extension/` folder inside this repo
+- Wait ~30 seconds for Zed to compile the Rust extension
+
+The extension auto-detects your node installation (NVM or Homebrew) and assumes EZLS is cloned to `~/code/EZLS`.
+
+**Step 3 (only if EZLS is cloned somewhere other than `~/code/EZLS`):** Override the server path in `~/.config/zed/settings.json`:
+
+```json
+{
+  "lsp": {
+    "ezls": {
+      "binary": {
+        "path": "node",
+        "arguments": ["/absolute/path/to/EZLS/out/server.js", "--stdio"]
+      }
+    }
+  }
+}
+```
+
+> **Important:** Use the full absolute path — do not use `~`.
+
+Zed spawns the server automatically when you open any `.ez` file. No `.zed/settings.json` is needed in your project — the extension handles language registration.
+
+**After updating server code:** run `npm run build`, then close and reopen the `.ez` file.
+
+To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `ezls`.
+
+---
+
+### Neovim (with nvim-lspconfig)
+
+**Step 1:** Install `nvim-lspconfig` if you haven't already (e.g. via lazy.nvim):
+
+```lua
+{ "neovim/nvim-lspconfig" }
+```
+
+**Step 2:** Add this to your Neovim config:
+
+```lua
+local lspconfig = require('lspconfig')
+local configs = require('lspconfig.configs')
+
+if not configs.ezls then
+  configs.ezls = {
+    default_config = {
+      cmd = { 'node', '/Users/you/code/EZLS/out/server.js', '--stdio' },
+      filetypes = { 'ez' },
+      root_dir = lspconfig.util.root_pattern('.git', '*.ez'),
+      single_file_support = true,
+    },
+  }
+end
+
+lspconfig.ezls.setup({})
+```
+
+**Step 3:** Register the `ez` filetype:
+
+```lua
+vim.filetype.add({ extension = { ez = 'ez' } })
+```
+
+Neovim attaches the server automatically when you open a `.ez` file. Run `:LspInfo` to confirm.
+
+**After updating server code:** run `npm run build`, then `:LspRestart` inside Neovim (or close and reopen the file).
+
+---
+
+## How Diagnostics Work
+
+On every file open, change, and save, EZLS writes the buffer to a temp file and runs:
+
+```sh
+ez /tmp/ez-lsp-XXXX.ez
+```
+
+The output is parsed for error and warning lines of the form:
+
+```
+error[E3018]: type mismatch in 'when'; comparing 'int' with 'string'
+  --> myfile.ez:42:10
+```
+
+Each becomes an inline diagnostic at the correct line and column, debounced 300 ms.
+
+If `ez` is not on your `$PATH`, diagnostics are silently skipped — completion, hover, and go to definition still work.
+
+---
+
+## Project Structure
+
+```
+EZLS/
+  src/
+    extension.ts          VS Code extension entry point
+    server.ts             LSP server (stdio transport)
+    features/
+      diagnostics.ts      ez integration + output parser
+      completion.ts       keyword / type / builtin / symbol completion
+      hover.ts            hover docs for keywords, types, builtins, symbols
+      definition.ts       go-to-definition (single-file)
+    utils/
+      ez-data.ts          all EZ keywords, types, builtins, and docs
+      symbols.ts          in-file symbol scanner
+  zed-extension/          Zed dev extension (registers EZ language + EZLS)
+  out/                    compiled output (generated by npm run build)
+  package.json
+  tsconfig.json
+```
+
+---
+
+## Developer Guide
+
+This section covers how to extend EZLS when the EZ language itself changes, or when you want to add new LSP features.
+
+### Adding a new keyword, type, or builtin
+
+All static language data lives in `src/utils/ez-data.ts`. It has three arrays and two doc maps:
+
+| Export | What to update |
+|--------|---------------|
+| `KEYWORDS` | Add reserved words that appear in control flow or declarations |
+| `TYPES` | Add new primitive or sized types |
+| `BUILTINS` | Add new builtin functions |
+| `STDLIB_MODULES` | Add new `@module` names |
+| `DOCS` | Add hover documentation for any of the above |
+| `MODULE_FUNCTION_DOCS` | Add hover docs for `module.function` calls |
+
+**Example — adding a new builtin `format`:**
+
+1. Add `'format'` to the `BUILTINS` array
+2. Add an entry to `DOCS`:
+   ```ts
+   'format': '**`format(template string, ...args) -> string`** — Format a string with substitutions.',
+   ```
+
+Rebuild (`npm run build`) and reopen a `.ez` file — the new builtin appears in completion and hover immediately.
+
+---
+
+### Adding hover docs for a stdlib function
+
+Add an entry to `MODULE_FUNCTION_DOCS` in `ez-data.ts`. The key is `"module.function"`:
+
+```ts
+'arrays.my_new_fn': '**`arrays.my_new_fn(arr [T], n int) -> T`** — Description here.',
+```
+
+---
+
+### Updating enum or struct scanning
+
+The scanner lives in `src/utils/symbols.ts`. Two functions handle multi-line bodies:
+
+- `scanEnumMembers(body: string[])` — parses variant names and their values (integer or string)
+- `scanStructFields(body: string[])` — parses field names and types
+
+If EZ adds a new enum or struct syntax (e.g. associated values, visibility modifiers), update the relevant regex patterns in those functions.
+
+---
+
+### Updating diagnostics parsing
+
+The diagnostic parser is in `src/features/diagnostics.ts`. It uses one regex against `ez` output:
+
+```ts
+const DIAG_PATTERN =
+  /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+[^:]+:(\d+):(\d+)/gm;
+```
+
+If `ez`'s error output format changes (e.g. new severity levels, different arrow syntax), update this regex. The capture groups map to: `severity`, `code`, `message`, `line`, `column`.
+
+---
+
+### Adding a new LSP feature
+
+1. Create `src/features/myfeature.ts` and export a `provideX` function that takes `(params, documents)` and returns the appropriate LSP type.
+
+2. Register it in `src/server.ts`:
+   ```ts
+   import { provideMyFeature } from './features/myfeature';
+
+   // Inside onInitialize, add the capability:
+   myFeatureProvider: true,
+
+   // Then register the handler:
+   connection.onMyFeature((params) => provideMyFeature(params, documents));
+   ```
+
+The [vscode-languageserver](https://github.com/microsoft/vscode-languageserver-node) package provides types and handler names for all standard LSP features (semantic tokens, code actions, rename, references, etc.).
+
+---
+
+### Build workflow
+
+```sh
+npm run build       # compile TypeScript + bundle with esbuild
+npm run compile     # TypeScript only (no bundle) — fast type-check
+```
+
+Always rebuild before testing changes. The server binary at `out/server.js` is what all editors load.

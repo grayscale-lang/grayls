@@ -1,0 +1,14 @@
+id = "ez"
+name = "EZ"
+version = "0.0.1"
+schema_version = 1
+authors = ["Marshall Burns"]
+description = "EZ programming language support: syntax highlighting and LSP"
+repository = "https://github.com/SchoolyB/EZ"
+
+[grammars.ez]
+repository = "https://github.com/SchoolyB/tree-sitter-ez"
+rev = "e99979c5e228137127616b8c8d73bcc9fd93e479"
+
+[language_servers.ezls]
+language = "EZ"
