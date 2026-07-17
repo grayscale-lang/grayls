@@ -7,8 +7,8 @@ description = "Grayscale programming language support: syntax highlighting and L
 repository = "https://github.com/SchoolyB/Grayscale"
 
 [grammars.gray]
-repository = "https://github.com/SchoolyB/tree-sitter-gray"
-rev = "e99979c5e228137127616b8c8d73bcc9fd93e479"
+repository = "https://github.com/grayscale-lang/tree-sitter-gray"
+rev = "72ce0bece64e415d5c0cd7c22c6947d41cf134e2"
 
 [language_servers.grayls]
 language = "Grayscale"
