@@ -1,14 +1,14 @@
-id = "ez"
-name = "EZ"
+id = "gray"
+name = "Grayscale"
 version = "0.0.1"
 schema_version = 1
 authors = ["Marshall Burns"]
-description = "EZ programming language support: syntax highlighting and LSP"
-repository = "https://github.com/SchoolyB/EZ"
+description = "Grayscale programming language support: syntax highlighting and LSP"
+repository = "https://github.com/SchoolyB/Grayscale"
 
-[grammars.ez]
-repository = "https://github.com/SchoolyB/tree-sitter-ez"
-rev = "e99979c5e228137127616b8c8d73bcc9fd93e479"
+[grammars.gray]
+repository = "https://github.com/grayscale-lang/tree-sitter-gray"
+rev = "72ce0bece64e415d5c0cd7c22c6947d41cf134e2"
 
-[language_servers.ezls]
-language = "EZ"
+[language_servers.grayls]
+language = "Grayscale"

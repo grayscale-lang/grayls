@@ -1,12 +1,12 @@
-# EZLS — EZ Language Server
+# GrayLS — Grayscale Language Server
 
-A Language Server Protocol (LSP) implementation for the [EZ programming language](https://github.com/SchoolyB/EZ).
+A Language Server Protocol (LSP) implementation for the [Grayscale programming language](https://github.com/SchoolyB/Grayscale).
 
 ## Features
 
-- **Diagnostics** — inline errors and warnings powered by `ez`
+- **Diagnostics** — inline errors and warnings powered by `gray`
 - **Completion** — keywords, types, builtins, stdlib modules, and in-file symbols
-- **Hover docs** — documentation for all EZ keywords, types, and builtins
+- **Hover docs** — documentation for all Grayscale keywords, types, and builtins
 - **Go to definition** — jump to `mut`, `const`, `func`, `struct`, and `enum` declarations within the current file
 
 ---
@@ -14,13 +14,13 @@ A Language Server Protocol (LSP) implementation for the [EZ programming language
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) v18 or later
-- `ez` on your `$PATH` (required for diagnostics — all other features work without it)
+- `gray` on your `$PATH` (required for diagnostics — all other features work without it)
 
 Verify both:
 
 ```sh
 node --version
-ez
+gray
 ```
 
 ---
@@ -28,8 +28,8 @@ ez
 ## Build
 
 ```sh
-git clone https://github.com/ez-lang/EZLS
-cd EZLS
+git clone https://github.com/grayscale-lang/GrayLS
+cd GrayLS
 npm install
 npm run build
 ```
@@ -42,14 +42,14 @@ The compiled server lands in `out/server.js`.
 
 ### VS Code
 
-Install the extension once as a `.vsix` package. After that it activates automatically whenever you open a `.ez` file — no extra steps.
+Install the extension once as a `.vsix` package. After that it activates automatically whenever you open a `.gray` file — no extra steps.
 
 ```sh
-cd /path/to/EZLS
+cd /path/to/GrayLS
 npm install -g @vscode/vsce
 npm run build
-vsce package          # produces ezls-0.1.0.vsix
-code --install-extension ezls-0.1.0.vsix
+vsce package          # produces grayls-0.1.0.vsix
+code --install-extension grayls-0.1.0.vsix
 ```
 
 Or install via the VS Code UI: **Extensions → ⋯ → Install from VSIX…**
@@ -57,20 +57,20 @@ Or install via the VS Code UI: **Extensions → ⋯ → Install from VSIX…**
 **After updating server code:** rebuild and reinstall:
 
 ```sh
-npm run build && vsce package && code --install-extension ezls-0.1.0.vsix
+npm run build && vsce package && code --install-extension grayls-0.1.0.vsix
 ```
 
 Then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
 
-> **For extension development only:** press **F5** in the EZLS folder to open an Extension Development Host window. This is for debugging the extension itself, not for daily use.
+> **For extension development only:** press **F5** in the GrayLS folder to open an Extension Development Host window. This is for debugging the extension itself, not for daily use.
 
 ---
 
 ### Zed
 
-Zed requires a small dev extension (in the `zed-extension/` folder of this repo) to register the EZ language and syntax highlighting.
+Zed requires a small dev extension (in the `zed-extension/` folder of this repo) to register the Grayscale language and syntax highlighting.
 
-**Step 1:** Build EZLS:
+**Step 1:** Build GrayLS:
 
 ```sh
 npm run build
@@ -82,17 +82,17 @@ npm run build
 - Select the `zed-extension/` folder inside this repo
 - Wait ~30 seconds for Zed to compile the Rust extension
 
-The extension auto-detects your node installation (NVM or Homebrew) and assumes EZLS is cloned to `~/code/EZLS`.
+The extension auto-detects your node installation (NVM or Homebrew) and assumes GrayLS is cloned to `~/code/GrayLS`.
 
-**Step 3 (only if EZLS is cloned somewhere other than `~/code/EZLS`):** Override the server path in `~/.config/zed/settings.json`:
+**Step 3 (only if GrayLS is cloned somewhere other than `~/code/GrayLS`):** Override the server path in `~/.config/zed/settings.json`:
 
 ```json
 {
   "lsp": {
-    "ezls": {
+    "grayls": {
       "binary": {
         "path": "node",
-        "arguments": ["/absolute/path/to/EZLS/out/server.js", "--stdio"]
+        "arguments": ["/absolute/path/to/GrayLS/out/server.js", "--stdio"]
       }
     }
   }
@@ -101,11 +101,11 @@ The extension auto-detects your node installation (NVM or Homebrew) and assumes 
 
 > **Important:** Use the full absolute path — do not use `~`.
 
-Zed spawns the server automatically when you open any `.ez` file. No `.zed/settings.json` is needed in your project — the extension handles language registration.
+Zed spawns the server automatically when you open any `.gray` file. No `.zed/settings.json` is needed in your project — the extension handles language registration.
 
-**After updating server code:** run `npm run build`, then close and reopen the `.ez` file.
+**After updating server code:** run `npm run build`, then close and reopen the `.gray` file.
 
-To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `ezls`.
+To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `grayls`.
 
 ---
 
@@ -123,27 +123,27 @@ To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search 
 local lspconfig = require('lspconfig')
 local configs = require('lspconfig.configs')
 
-if not configs.ezls then
-  configs.ezls = {
+if not configs.grayls then
+  configs.grayls = {
     default_config = {
-      cmd = { 'node', '/Users/you/code/EZLS/out/server.js', '--stdio' },
-      filetypes = { 'ez' },
-      root_dir = lspconfig.util.root_pattern('.git', '*.ez'),
+      cmd = { 'node', '/Users/you/code/GrayLS/out/server.js', '--stdio' },
+      filetypes = { 'gray' },
+      root_dir = lspconfig.util.root_pattern('.git', '*.gray'),
       single_file_support = true,
     },
   }
 end
 
-lspconfig.ezls.setup({})
+lspconfig.grayls.setup({})
 ```
 
-**Step 3:** Register the `ez` filetype:
+**Step 3:** Register the `gray` filetype:
 
 ```lua
-vim.filetype.add({ extension = { ez = 'ez' } })
+vim.filetype.add({ extension = { gray = 'gray' } })
 ```
 
-Neovim attaches the server automatically when you open a `.ez` file. Run `:LspInfo` to confirm.
+Neovim attaches the server automatically when you open a `.gray` file. Run `:LspInfo` to confirm.
 
 **After updating server code:** run `npm run build`, then `:LspRestart` inside Neovim (or close and reopen the file).
 
@@ -151,41 +151,41 @@ Neovim attaches the server automatically when you open a `.ez` file. Run `:LspIn
 
 ## How Diagnostics Work
 
-On every file open, change, and save, EZLS writes the buffer to a temp file and runs:
+On every file open, change, and save, GrayLS writes the buffer to a temp file and runs:
 
 ```sh
-ez /tmp/ez-lsp-XXXX.ez
+gray /tmp/gray-lsp-XXXX.gray
 ```
 
 The output is parsed for error and warning lines of the form:
 
 ```
 error[E3018]: type mismatch in 'when'; comparing 'int' with 'string'
-  --> myfile.ez:42:10
+  --> myfile.gray:42:10
 ```
 
 Each becomes an inline diagnostic at the correct line and column, debounced 300 ms.
 
-If `ez` is not on your `$PATH`, diagnostics are silently skipped — completion, hover, and go to definition still work.
+If `gray` is not on your `$PATH`, diagnostics are silently skipped — completion, hover, and go to definition still work.
 
 ---
 
 ## Project Structure
 
 ```
-EZLS/
+GrayLS/
   src/
     extension.ts          VS Code extension entry point
     server.ts             LSP server (stdio transport)
     features/
-      diagnostics.ts      ez integration + output parser
+      diagnostics.ts      gray integration + output parser
       completion.ts       keyword / type / builtin / symbol completion
       hover.ts            hover docs for keywords, types, builtins, symbols
       definition.ts       go-to-definition (single-file)
     utils/
-      ez-data.ts          all EZ keywords, types, builtins, and docs
+      gray-data.ts        all Grayscale keywords, types, builtins, and docs
       symbols.ts          in-file symbol scanner
-  zed-extension/          Zed dev extension (registers EZ language + EZLS)
+  zed-extension/          Zed dev extension (registers Grayscale language + GrayLS)
   out/                    compiled output (generated by npm run build)
   package.json
   tsconfig.json
@@ -195,11 +195,11 @@ EZLS/
 
 ## Developer Guide
 
-This section covers how to extend EZLS when the EZ language itself changes, or when you want to add new LSP features.
+This section covers how to extend GrayLS when the Grayscale language itself changes, or when you want to add new LSP features.
 
 ### Adding a new keyword, type, or builtin
 
-All static language data lives in `src/utils/ez-data.ts`. It has three arrays and two doc maps:
+All static language data lives in `src/utils/gray-data.ts`. It has three arrays and two doc maps:
 
 | Export | What to update |
 |--------|---------------|
@@ -218,13 +218,13 @@ All static language data lives in `src/utils/ez-data.ts`. It has three arrays an
    'format': '**`format(template string, ...args) -> string`** — Format a string with substitutions.',
    ```
 
-Rebuild (`npm run build`) and reopen a `.ez` file — the new builtin appears in completion and hover immediately.
+Rebuild (`npm run build`) and reopen a `.gray` file — the new builtin appears in completion and hover immediately.
 
 ---
 
 ### Adding hover docs for a stdlib function
 
-Add an entry to `MODULE_FUNCTION_DOCS` in `ez-data.ts`. The key is `"module.function"`:
+Add an entry to `MODULE_FUNCTION_DOCS` in `gray-data.ts`. The key is `"module.function"`:
 
 ```ts
 'arrays.my_new_fn': '**`arrays.my_new_fn(arr [T], n int) -> T`** — Description here.',
@@ -239,20 +239,20 @@ The scanner lives in `src/utils/symbols.ts`. Two functions handle multi-line bod
 - `scanEnumMembers(body: string[])` — parses variant names and their values (integer or string)
 - `scanStructFields(body: string[])` — parses field names and types
 
-If EZ adds a new enum or struct syntax (e.g. associated values, visibility modifiers), update the relevant regex patterns in those functions.
+If Grayscale adds a new enum or struct syntax (e.g. associated values, visibility modifiers), update the relevant regex patterns in those functions.
 
 ---
 
 ### Updating diagnostics parsing
 
-The diagnostic parser is in `src/features/diagnostics.ts`. It uses one regex against `ez` output:
+The diagnostic parser is in `src/features/diagnostics.ts`. It uses one regex against `gray` output:
 
 ```ts
 const DIAG_PATTERN =
   /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+[^:]+:(\d+):(\d+)/gm;
 ```
 
-If `ez`'s error output format changes (e.g. new severity levels, different arrow syntax), update this regex. The capture groups map to: `severity`, `code`, `message`, `line`, `column`.
+If `gray`'s error output format changes (e.g. new severity levels, different arrow syntax), update this regex. The capture groups map to: `severity`, `code`, `message`, `line`, `column`.
 
 ---
 

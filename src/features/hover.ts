@@ -5,13 +5,13 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/ez-data';
+import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   wordAt,
   moduleWordAt,
   compositeTypeAt,
   scanSymbols,
-  EzSymbol,
+  GraySymbol,
 } from '../utils/symbols';
 
 // ---------------------------------------------------------------------------
@@ -52,10 +52,10 @@ function renderCompositeType(typeStr: string): string {
 // User symbol rendering
 // ---------------------------------------------------------------------------
 
-function renderEnum(sym: EzSymbol): string {
+function renderEnum(sym: GraySymbol): string {
   const header = `**Enum** \`${sym.name}\`\n\n`;
   if (!sym.enumMembers || sym.enumMembers.length === 0) {
-    return header + `\`\`\`ez\n${sym.declaration}\n\`\`\``;
+    return header + `\`\`\`gray\n${sym.declaration}\n\`\`\``;
   }
   const rows = sym.enumMembers
     .map(m => `| \`${m.name}\` | ${m.value} |`)
@@ -63,10 +63,10 @@ function renderEnum(sym: EzSymbol): string {
   return header + `| Variant | Value |\n|---------|-------|\n${rows}`;
 }
 
-function renderStruct(sym: EzSymbol): string {
+function renderStruct(sym: GraySymbol): string {
   const header = `**Struct** \`${sym.name}\`\n\n`;
   if (!sym.structFields || sym.structFields.length === 0) {
-    return header + `\`\`\`ez\n${sym.declaration}\n\`\`\``;
+    return header + `\`\`\`gray\n${sym.declaration}\n\`\`\``;
   }
   const rows = sym.structFields
     .map(f => `| \`${f.name}\` | \`${f.type}\` |`)
@@ -74,10 +74,10 @@ function renderStruct(sym: EzSymbol): string {
   return header + `| Field | Type |\n|-------|------|\n${rows}`;
 }
 
-function renderVariable(sym: EzSymbol): string {
+function renderVariable(sym: GraySymbol): string {
   const kindLabel = sym.kind === 'constant' ? 'Constant' : 'Variable';
   const typeInfo  = sym.type ? ` \`${sym.type}\`` : '';
-  return `**${kindLabel}**${typeInfo} \`${sym.name}\`\n\n\`\`\`ez\n${sym.declaration}\n\`\`\``;
+  return `**${kindLabel}**${typeInfo} \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ export function provideHover(
   switch (sym.kind) {
     case 'enum':     value = renderEnum(sym);    break;
     case 'struct':   value = renderStruct(sym);  break;
-    case 'function': value = `**Function** \`${sym.name}\`\n\n\`\`\`ez\n${sym.declaration}\n\`\`\``; break;
+    case 'function': value = `**Function** \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
     default:         value = renderVariable(sym);
   }
 

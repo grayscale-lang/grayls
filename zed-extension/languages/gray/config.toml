@@ -1,6 +1,6 @@
-name = "EZ"
-grammar = "ez"
-path_suffixes = ["ez"]
+name = "Grayscale"
+grammar = "gray"
+path_suffixes = ["gray"]
 line_comments = ["//"]
 block_comments = [["/*", "*/"]]
 autoclose_before = ";:.,=}])>"
