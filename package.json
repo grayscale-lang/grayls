@@ -1,21 +1,21 @@
 {
-  "name": "ezls",
-  "displayName": "EZ Language Support",
-  "description": "Language server for the EZ programming language: diagnostics, completion, hover, and go-to-definition",
+  "name": "grayls",
+  "displayName": "Grayscale Language Support",
+  "description": "Language server for the Grayscale programming language: diagnostics, completion, hover, and go-to-definition",
   "version": "0.1.0",
-  "publisher": "ez-lang",
+  "publisher": "grayscale-lang",
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:ez"],
+  "activationEvents": ["onLanguage:gray"],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "ez",
-        "aliases": ["EZ", "ez"],
-        "extensions": [".ez"],
+        "id": "gray",
+        "aliases": ["Grayscale", "gray"],
+        "extensions": [".gray"],
         "configuration": "./language-configuration.json"
       }
     ]

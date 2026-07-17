@@ -10,13 +10,13 @@ export interface StructField {
   type: string;
 }
 
-export interface EzSymbol {
+export interface GraySymbol {
   name: string;
   kind: 'variable' | 'constant' | 'function' | 'struct' | 'enum';
   line: number;   // 0-indexed
   char: number;   // 0-indexed, start of the name
   declaration: string; // full declaration line text
-  type?: string;           // parsed EZ type for mut/const declarations
+  type?: string;           // parsed Grayscale type for mut/const declarations
   enumMembers?: EnumMember[];
   structFields?: StructField[];
 }
@@ -29,7 +29,7 @@ const STRUCT_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
 const ENUM_PATTERN   = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
 
 /**
- * Extract the declared EZ type from a `mut` or `const` line.
+ * Extract the declared Grayscale type from a `mut` or `const` line.
  *
  * Handles:  mut x int = 42
  *           mut arr [byte] = {}
@@ -137,8 +137,8 @@ function scanStructFields(body: string[]): StructField[] {
 /**
  * Scan document text and extract all declared symbols.
  */
-export function scanSymbols(text: string): EzSymbol[] {
-  const symbols: EzSymbol[] = [];
+export function scanSymbols(text: string): GraySymbol[] {
+  const symbols: GraySymbol[] = [];
   const lines = text.split('\n');
   let i = 0;
 
@@ -327,7 +327,7 @@ export function compositeTypeAt(text: string, position: Position): string | null
 /**
  * Given a word and a set of symbols, find the first declaration location.
  */
-export function findDeclaration(word: string, symbols: EzSymbol[], uri: string): Location | null {
+export function findDeclaration(word: string, symbols: GraySymbol[], uri: string): Location | null {
   const sym = symbols.find(s => s.name === word);
   if (!sym) return null;
   return {

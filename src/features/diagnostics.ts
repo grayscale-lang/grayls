@@ -14,8 +14,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 // Debounce timer per document URI
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-// Match: error[E3018]: message\n  --> file.ez:42:10
-// or:    warning[W1234]: message\n  --> file.ez:42:10
+// Match: error[E3018]: message\n  --> file.gray:42:10
+// or:    warning[W1234]: message\n  --> file.gray:42:10
 const DIAG_PATTERN =
   /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+[^:]+:(\d+):(\d+)/gm;
 
@@ -39,15 +39,15 @@ function parseDiagnostics(output: string): Diagnostic[] {
         : DiagnosticSeverity.Warning,
       code,
       message,
-      source: 'ezc',
+      source: 'grayc',
     });
   }
   return diags;
 }
 
 function runCheck(text: string): Diagnostic[] {
-  // Write to a temp file so ezc can read it (handles unsaved buffers too)
-  const tmpFile = path.join(os.tmpdir(), `ez-lsp-${process.pid}.ez`);
+  // Write to a temp file so gray can read it (handles unsaved buffers too)
+  const tmpFile = path.join(os.tmpdir(), `gray-lsp-${process.pid}.gray`);
   try {
     fs.writeFileSync(tmpFile, text, 'utf8');
   } catch {
@@ -55,7 +55,7 @@ function runCheck(text: string): Diagnostic[] {
   }
 
   try {
-    const result = cp.spawnSync('ez', [tmpFile], {
+    const result = cp.spawnSync('gray', [tmpFile], {
       encoding: 'utf8',
       timeout: 10_000,
     });

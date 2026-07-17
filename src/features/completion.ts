@@ -5,7 +5,7 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, DOCS } from '../utils/ez-data';
+import { KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, DOCS } from '../utils/gray-data';
 import { scanSymbols } from '../utils/symbols';
 
 // Pre-built static completion lists (created once)

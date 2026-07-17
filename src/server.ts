@@ -32,13 +32,13 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       definitionProvider: true,
     },
     serverInfo: {
-      name: 'EZLS',
+      name: 'GrayLS',
       version: '0.1.0',
     },
   };
 });
 
-// Register diagnostics (runs ezc check on open/save/change)
+// Register diagnostics (runs gray check on open/save/change)
 registerDiagnostics(connection, documents);
 
 // Completion

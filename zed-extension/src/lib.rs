@@ -1,10 +1,10 @@
 use zed_extension_api::{self as zed, LanguageServerId, Result};
 
-struct EzExtension;
+struct GrayExtension;
 
-impl zed::Extension for EzExtension {
+impl zed::Extension for GrayExtension {
     fn new() -> Self {
-        EzExtension
+        GrayExtension
     }
 
     fn language_server_command(
@@ -20,7 +20,7 @@ impl zed::Extension for EzExtension {
             .map(|v| format!("{}/.nvm/versions/node/{}/bin/node", home, v.trim()))
             .unwrap_or_else(|_| "/usr/local/bin/node".to_string());
 
-        let server = format!("{}/code/EZLS/out/server.js", home);
+        let server = format!("{}/code/GrayLS/out/server.js", home);
 
         Ok(zed::Command {
             command: node,
@@ -30,4 +30,4 @@ impl zed::Extension for EzExtension {
     }
 }
 
-zed::register_extension!(EzExtension);
+zed::register_extension!(GrayExtension);

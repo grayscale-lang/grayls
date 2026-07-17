@@ -25,15 +25,15 @@ export function activate(context: ExtensionContext): void {
   };
 
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: 'file', language: 'ez' }],
+    documentSelector: [{ scheme: 'file', language: 'gray' }],
     synchronize: {
       fileEvents: [],
     },
   };
 
   client = new LanguageClient(
-    'ezls',
-    'EZ Language Server',
+    'grayls',
+    'Grayscale Language Server',
     serverOptions,
     clientOptions,
   );
