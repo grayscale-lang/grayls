@@ -20,7 +20,7 @@ impl zed::Extension for GrayExtension {
             .map(|v| format!("{}/.nvm/versions/node/{}/bin/node", home, v.trim()))
             .unwrap_or_else(|_| "/usr/local/bin/node".to_string());
 
-        let server = format!("{}/code/GrayLS/out/server.js", home);
+        let server = format!("{}/code/grayls/out/server.js", home);
 
         Ok(zed::Command {
             command: node,
