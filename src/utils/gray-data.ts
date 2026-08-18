@@ -28,9 +28,9 @@ export const BUILTINS: string[] = [
   // Input
   'input',
   // Collections / memory
-  'len', 'copy', 'new', 'ref', 'addr',
+  'len', 'copy', 'new', 'ref', 'addr', 'raw',
   // Type utilities
-  'type_of', 'size_of', 'cast',
+  'type_of', 'size_of', 'cast', 'fields',
   // String utilities
   'to_char', 'char_count', 'c_string',
   // Error / control
@@ -41,6 +41,8 @@ export const BUILTINS: string[] = [
   'i128', 'i256', 'u128', 'u256',
   // Compile-time
   'embed',
+  // Shell
+  'system',
   // Sleep
   'sleep_s', 'sleep_ms', 'sleep_ns',
   // Type conversion functions (also serve as cast)
@@ -514,13 +516,16 @@ export const DOCS: Record<string, string> = {
   'len': '**`len(collection) -> int`** — Returns the length of an array, map, or string (byte length for strings).',
   'type_of': '**`type_of(value) -> string`** — Returns the Grayscale type name as a string (e.g. `"int"`, `"string"`).',
   'size_of': '**`size_of(Type) -> int`** — Returns the size of a type in bytes.',
+  'fields': '**`fields(instance) -> [string]`** \u2014 Returns the field names of a struct as an array of strings, in declaration order.\n\nAccepts struct instances and pointers to structs.\n\n```gray\nconst Point struct {\n    x int\n    y int\n}\n\nmut p = Point{x: 1, y: 2}\nprintln(fields(p))   // {"x", "y"}\n```',
   'copy': '**`copy(value) -> T`** — Creates a deep copy of any value.',
   'ref': '**`ref(variable) -> ref<T>`** — Creates a transparent reference (alias) to a variable.',
   'addr': '**`addr(variable) -> ^T`** — Returns the memory address of a variable as a pointer.',
+  'raw': '**`raw(variable) -> ^T`** \u2014 Returns an unchecked pointer to a variable.\n\nLike `addr()`, but skips nil-check panics and const-source write protection. Unsafe \u2014 the compiler will not stop you from writing through it.\n\n```gray\nmut x int = 42\nmut p ^int = raw(x)\n```',
   'error': '**`error(message string) -> Error`** — Creates an Error value with the given message.',
   'assert': '**`assert(condition bool [, message string])`** — Panics with P0075 if condition is false. Message is optional.',
   'panic': '**`panic(message string)`** — Terminates the program immediately with an error message.',
   'exit': '**`exit(code int)`** — Exits the program with the given status code.',
+  'system': '**`system(command string) -> int`** \u2014 Runs a shell command and returns its exit code.\n\nReturns `-1` if the command was killed by a signal.\n\n```gray\nmut code int = system("ls -la")\n```',
   'to_char': '**`to_char(s string, index int) -> int`** — Returns the Unicode codepoint at character position `index`.',
   'char_count': '**`char_count(s string) -> int`** — Returns the number of Unicode characters (not bytes) in a string.',
   'c_string': '**`c_string(ptr ^u8) -> string`** — Converts a C `char*` pointer to a Grayscale string (C interop).',
