@@ -5,7 +5,7 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, DOCS } from '../utils/gray-data';
+import { KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, ATTRIBUTES, DOCS } from '../utils/gray-data';
 import { scanSymbols } from '../utils/symbols';
 
 // Pre-built static completion lists (created once)
@@ -28,6 +28,15 @@ const BUILTIN_ITEMS: CompletionItem[] = BUILTINS.map(b => ({
   kind: CompletionItemKind.Function,
   detail: 'builtin',
   documentation: DOCS[b],
+}));
+
+const ATTRIBUTE_ITEMS: CompletionItem[] = ATTRIBUTES.map(a => ({
+  label: `#${a}`,
+  kind: CompletionItemKind.Property,
+  detail: 'attribute',
+  documentation: DOCS[`#${a}`],
+  filterText: a,
+  insertText: a,
 }));
 
 const MODULE_ITEMS: CompletionItem[] = STDLIB_MODULES.map(m => ({
@@ -63,6 +72,11 @@ export function provideCompletion(
   // Context: after `import @` → suggest module names
   if (/\bimport\s+@\w*$/.test(prefix)) {
     return MODULE_ITEMS;
+  }
+
+  // Context: after `#` → suggest attribute names
+  if (/#\w*$/.test(prefix)) {
+    return ATTRIBUTE_ITEMS;
   }
 
   // Context: after `import @module using` → still show modules (already picked)

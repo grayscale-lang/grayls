@@ -7,6 +7,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
+  attributeAt,
   wordAt,
   moduleWordAt,
   compositeTypeAt,
@@ -101,7 +102,15 @@ export function provideHover(
     };
   }
 
-  // 2. Module function: arrays.append, math.sqrt, etc.
+  // 2. Attribute: #doc, #json, #flags, #strict, #discard
+  const attr = attributeAt(text, params.position);
+  if (attr && DOCS[attr]) {
+    return {
+      contents: { kind: MarkupKind.Markdown, value: DOCS[attr] },
+    };
+  }
+
+  // 3. Module function: arrays.append, math.sqrt, etc.
   const modWord = moduleWordAt(text, params.position);
   if (modWord) {
     const key = `${modWord.module}.${modWord.fn}`;
@@ -115,14 +124,14 @@ export function provideHover(
   const word = wordAt(text, params.position);
   if (!word) return null;
 
-  // 3. Static docs: keywords, primitive types, builtins, module names
+  // 4. Static docs: keywords, primitive types, builtins, module names
   if (DOCS[word]) {
     return {
       contents: { kind: MarkupKind.Markdown, value: DOCS[word] },
     };
   }
 
-  // 4. User-defined symbols
+  // 5. User-defined symbols
   const symbols = scanSymbols(text);
   const sym = symbols.find(s => s.name === word);
   if (!sym) return null;

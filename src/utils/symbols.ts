@@ -205,6 +205,26 @@ export function scanSymbols(text: string): GraySymbol[] {
 }
 
 /**
+ * If the cursor is on an attribute name preceded by `#`, return the attribute
+ * key including the hash (e.g. `#discard`). Returns null otherwise.
+ */
+export function attributeAt(text: string, position: Position): string | null {
+  const lines = text.split('\n');
+  if (position.line >= lines.length) return null;
+  const line = lines[position.line];
+  const ch = position.character;
+
+  let start = ch;
+  let end = ch;
+  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
+  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
+  if (start === end) return null;
+  if (start === 0 || line[start - 1] !== '#') return null;
+
+  return '#' + line.slice(start, end);
+}
+
+/**
  * Find the word at the given position in text.
  */
 export function wordAt(text: string, position: Position): string {

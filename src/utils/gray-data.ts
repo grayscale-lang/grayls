@@ -54,6 +54,10 @@ export const STDLIB_MODULES: string[] = [
   'net', 'threads', 'sync', 'channels', 'mem', 'atomic', 'fmt', 'strconv',
 ];
 
+export const ATTRIBUTES: string[] = [
+  'doc', 'json', 'flags', 'strict', 'discard',
+];
+
 // ---------------------------------------------------------------------------
 // Stdlib module → function docs
 // Key format: "module.function"  (e.g. "arrays.append")
@@ -524,6 +528,13 @@ export const DOCS: Record<string, string> = {
   'sleep_s': '**`sleep_s(seconds int)`** — Sleeps for the given number of seconds.',
   'sleep_ms': '**`sleep_ms(ms int)`** — Sleeps for the given number of milliseconds.',
   'sleep_ns': '**`sleep_ns(ns int)`** — Sleeps for the given number of nanoseconds.',
+
+  // --- Attributes ---
+  '#doc': '**`#doc("...")`** \u2014 Documentation metadata for functions, structs, enums, and file-scope variables. Consumed by `gray doc`.\n\n```gray\n#doc("Adds two numbers")\ndo add(a int, b int) -> int {\n    return a + b\n}\n```',
+  '#json': '**`#json`** \u2014 Enables JSON serialization for a struct. Required by `json.parse()` and `json.stringify()`.\n\nSupported field types: `int`, `uint`, `float`, `string`, `bool`, plus nested `#json` structs. `#json` structs cannot have default field values.\n\n```gray\n#json\nconst Person struct {\n    name string\n    age int\n}\n```',
+  '#flags': '**`#flags`** \u2014 Marks an enum as a bitflag set. Variant values become powers of 2 instead of auto-incrementing from 0.\n\n```gray\n#flags\nconst Permissions enum {\n    READ      // 1\n    WRITE     // 2\n    EXECUTE   // 4\n}\n```',
+  '#strict': '**`#strict`** \u2014 Applied to a `when` block, requires every variant of the matched enum to be handled.\n\n```gray\n#strict\nwhen dir {\n    is .NORTH { }\n    is .EAST  { }\n    is .SOUTH { }\n    is .WEST  { }\n}\n```',
+  '#discard': '**`#discard`** \u2014 Marks a function whose return value may safely be ignored by callers.\n\nWithout `#discard`, calling a non-void function as a bare statement produces **E5011** (return value not used). With it, callers may drop the result.\n\n```gray\n#discard\ndo log(msg string) -> int {\n    println(msg)\n    return 0\n}\n\ndo main() {\n    log("hello")   // no E5011\n}\n```\n\nApplies to plain functions and struct functions. Cannot be applied to structs, enums, or variables (E2002), nor to void functions (E5042).',
 
   // --- Stdlib modules ---
   'arrays': '**`@arrays`** — Array utilities: `append`, `remove`, `contains`, `reverse`, `sort`, `slice`, `flatten`, `map`, `filter`, `reduce`, `any`, `all`, etc.',
