@@ -146,6 +146,15 @@ export function provideHover(
         contents: { kind: MarkupKind.Markdown, value: MODULE_FUNCTION_DOCS[key] },
       };
     }
+    // C interop: any `c.` member resolves to the imported C header.
+    if (modWord.module === 'c') {
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: `**\`c.${modWord.fn}\`** \u2014 C function or constant, resolved by the C compiler from the imported headers.\n\nReturn types are inferred by the C compiler. Annotate the variable when Grayscale needs to know the type:\n\n\`\`\`gray\nmut x float = c.sqrt(2.0)\n\`\`\``,
+        },
+      };
+    }
   }
 
   const word = wordAt(text, params.position);
