@@ -124,7 +124,8 @@
 (type (identifier) @type.builtin)
 
 ; Type in new() expressions
-(new_expression type: (identifier) @type.builtin)
+(new_expression
+  type: (type (identifier) @type.builtin))
 
 ; Operators
 [
@@ -292,3 +293,12 @@
 ; Named argument at a call site: connect(host: "localhost")
 (named_argument
   name: (identifier) @variable.parameter)
+
+; Module-qualified type: models.Task
+(qualified_type
+  (identifier) @namespace
+  .
+  (identifier) @type.builtin)
+
+; Function type: func(int, int) -> int
+(func_type "func" @type.builtin)
