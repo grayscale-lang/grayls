@@ -169,11 +169,58 @@ function scanStructFields(body: string[]): StructField[] {
 }
 
 /**
+ * Blank out the contents of raw string literals, preserving every offset so
+ * line and column positions stay valid.
+ *
+ * Raw strings are backtick-delimited and may span lines, so their contents
+ * would otherwise be scanned as declarations. Comments, regular strings, and
+ * character literals are stepped over so a backtick inside one cannot open a
+ * spurious raw string.
+ */
+function maskRawStrings(text: string): string {
+  const out = text.split('');
+  let i = 0;
+
+  while (i < text.length) {
+    const c = text[i];
+
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i += 2;
+    } else if (c === '"' || c === "'") {
+      i++;
+      while (i < text.length && text[i] !== c && text[i] !== '\n') {
+        if (text[i] === '\\') i++;
+        i++;
+      }
+      i++;
+    } else if (c === '`') {
+      i++;
+      while (i < text.length && text[i] !== '`') {
+        if (text[i] !== '\n') out[i] = ' ';
+        i++;
+      }
+      i++;
+    } else {
+      i++;
+    }
+  }
+
+  return out.join('');
+}
+
+/**
  * Scan document text and extract all declared symbols.
  */
 export function scanSymbols(text: string): GraySymbol[] {
   const symbols: GraySymbol[] = [];
-  const lines = text.split('\n');
+  // Match against masked text so raw string contents are never scanned;
+  // offsets are preserved, so positions remain valid.
+  const lines = maskRawStrings(text).split('\n');
+  const sourceLines = text.split('\n');
   // Tagged-enum pattern bindings, resolved to payload types after the scan.
   const bindings: { sym: GraySymbol; enumName?: string; variant: string; index: number }[] = [];
   let i = 0;
@@ -191,7 +238,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'struct',
         line: i,
         char: line.indexOf(name),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
         structFields: fields,
       });
     } else if ((m = ENUM_PATTERN.exec(line))) {
@@ -203,7 +250,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'enum',
         line: i,
         char: line.indexOf(name),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
         enumMembers: members,
       });
     } else if ((m = IS_PATTERN.exec(line))) {
@@ -218,7 +265,7 @@ export function scanSymbols(text: string): GraySymbol[] {
           kind: 'variable',
           line: i,
           char: searchFrom,
-          declaration: line.trim(),
+          declaration: sourceLines[i].trim(),
         };
         symbols.push(sym);
         bindings.push({ sym, enumName, variant, index });
@@ -229,7 +276,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'alias',
         line: i,
         char: line.indexOf(m[1]),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
         type: m[2].replace(/\/\/.*$/, '').trim(),
       });
     } else if ((m = FUNC_PATTERN.exec(line))) {
@@ -238,7 +285,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'function',
         line: i,
         char: line.indexOf(m[1]),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
       });
     } else if ((m = MUT_PATTERN.exec(line))) {
       symbols.push({
@@ -246,7 +293,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'variable',
         line: i,
         char: line.indexOf(m[1]),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
         type: extractType(line),
       });
     } else if ((m = CONST_VAR_PATTERN.exec(line))) {
@@ -255,7 +302,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         kind: 'constant',
         line: i,
         char: line.indexOf(m[1]),
-        declaration: line.trim(),
+        declaration: sourceLines[i].trim(),
         type: extractType(line),
       });
     }
