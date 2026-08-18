@@ -10,6 +10,8 @@ export interface EnumMember {
 export interface StructField {
   name: string;
   type: string;
+  /** Default value expression, when the field declares one. */
+  default?: string;
 }
 
 export interface GraySymbol {
@@ -129,21 +131,39 @@ function scanEnumMembers(body: string[]): EnumMember[] {
 
 function scanStructFields(body: string[]): StructField[] {
   const fields: StructField[] = [];
+  // Depth relative to the struct body, so nested struct-function bodies are skipped.
+  let depth = 0;
+
   for (const line of body) {
     const trimmed = line.trim().replace(/\/\/.*$/, '').trim();
-    if (!trimmed || trimmed.startsWith('//')) continue;
+    const opens  = (line.match(/\{/g) || []).length;
+    const closes = (line.match(/\}/g) || []).length;
 
-    // field name(s) then type: "x int" or "x, y int = 0"
-    const m = trimmed.match(/^([A-Za-z][A-Za-z0-9_,\s]*?)\s+([\[\^]?[A-Za-z][A-Za-z0-9_\[\]:,\s]*?)(?:\s*=.*)?$/);
-    if (!m) continue;
+    if (depth === 0 && trimmed && !trimmed.startsWith('#')) {
+      // Split off a default value at the first `=` that is not part of `==`.
+      let decl = trimmed;
+      let def: string | undefined;
+      const eq = trimmed.search(/=(?!=)/);
+      if (eq !== -1) {
+        decl = trimmed.slice(0, eq).trim();
+        def  = trimmed.slice(eq + 1).trim().replace(/,$/, '').trim() || undefined;
+      }
 
-    const names = m[1].split(',').map(n => n.trim()).filter(Boolean);
-    const type  = m[2].trim();
-    for (const name of names) {
-      if (/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
-        fields.push({ name, type });
+      // `name` or `name, name, ...` followed by the shared type.
+      const m = decl.match(
+        /^((?:[A-Za-z][A-Za-z0-9_]*\s*,\s*)*)([A-Za-z][A-Za-z0-9_]*)\s+([\[\^]?[A-Za-z][A-Za-z0-9_\[\]:,\s\^]*)$/,
+      );
+      if (m) {
+        const names = (m[1] + m[2]).split(',').map(n => n.trim()).filter(Boolean);
+        const type  = m[3].trim();
+        for (const name of names) {
+          fields.push(def === undefined ? { name, type } : { name, type, default: def });
+        }
       }
     }
+
+    depth += opens - closes;
+    if (depth < 0) depth = 0;
   }
   return fields;
 }

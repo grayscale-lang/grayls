@@ -79,6 +79,15 @@ function renderStruct(sym: GraySymbol): string {
   if (!sym.structFields || sym.structFields.length === 0) {
     return header + `\`\`\`gray\n${sym.declaration}\n\`\`\``;
   }
+  const hasDefaults = sym.structFields.some(f => f.default !== undefined);
+
+  if (hasDefaults) {
+    const rows = sym.structFields
+      .map(f => `| \`${f.name}\` | \`${f.type}\` | ${f.default !== undefined ? `\`${f.default}\`` : '—'} |`)
+      .join('\n');
+    return header + `| Field | Type | Default |\n|-------|------|---------|\n${rows}`;
+  }
+
   const rows = sym.structFields
     .map(f => `| \`${f.name}\` | \`${f.type}\` |`)
     .join('\n');
