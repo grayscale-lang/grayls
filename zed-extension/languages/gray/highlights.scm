@@ -48,6 +48,8 @@
   "if"
   "or"
   "otherwise"
+  "else"
+  "alias"
   "for"
   "for_each"
   "as_long_as"
@@ -275,3 +277,18 @@
 
 ; Wildcard type
 (wildcard_type) @type.builtin
+
+; Type parameter annotation: do make(T <?>)
+(type_parameter) @type.builtin
+
+; Type alias declaration
+(alias_declaration
+  name: (identifier) @type.definition)
+
+; Implicit enum selector: .NORTH
+(implicit_selector
+  variant: (identifier) @constant)
+
+; Named argument at a call site: connect(host: "localhost")
+(named_argument
+  name: (identifier) @variable.parameter)
