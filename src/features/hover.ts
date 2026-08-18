@@ -141,6 +141,7 @@ export function provideHover(
     case 'enum':     value = renderEnum(sym);    break;
     case 'struct':   value = renderStruct(sym);  break;
     case 'function': value = `**Function** \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
+    case 'alias':    value = `**Type alias** \`${sym.name}\` → \`${sym.type ?? '?'}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
     default:         value = renderVariable(sym);
   }
 

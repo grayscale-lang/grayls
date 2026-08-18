@@ -94,9 +94,11 @@ export function provideCompletion(
         ? CompletionItemKind.Struct
         : sym.kind === 'enum'
           ? CompletionItemKind.Enum
-          : sym.kind === 'constant'
-            ? CompletionItemKind.Constant
-            : CompletionItemKind.Variable,
+          : sym.kind === 'alias'
+            ? CompletionItemKind.TypeParameter
+            : sym.kind === 'constant'
+              ? CompletionItemKind.Constant
+              : CompletionItemKind.Variable,
     detail: `${sym.kind} — ${sym.declaration}`,
   }));
 

@@ -6,7 +6,7 @@ export const KEYWORDS: string[] = [
   'as_long_as', 'break', 'continue', 'default', 'else', 'ensure', 'for', 'for_each',
   'if', 'is', 'loop', 'or', 'or_return', 'otherwise', 'return', 'when', 'while',
   // Declarations
-  'const', 'do', 'enum', 'import', 'mut', 'new', 'private', 'struct', 'use', 'using',
+  'alias', 'const', 'do', 'enum', 'import', 'mut', 'new', 'private', 'struct', 'use', 'using',
   // Operators / values
   'bit_and', 'bit_not', 'bit_or', 'bit_shift_left', 'bit_shift_right', 'bit_xor',
   'cast', 'false', 'in', 'not_in', 'nil', 'range', 'true',
@@ -464,6 +464,7 @@ export const DOCS: Record<string, string> = {
   'using': '**`using`** — Imports a module\'s symbols into the current scope.\n\n```gray\nimport @math using *\n```',
   'use': '**`use`** — Used with `import` to bring symbols into scope.',
   'new': '**`new`** — Allocates a zero-initialized struct on the arena and returns a pointer.\n\n```gray\nmut p ^Point = new(Point)\n```',
+  'alias': '**`alias`** \u2014 Creates an interchangeable name for an existing type.\n\n```gray\nalias Meters = float\nalias Vec2 = Point\nalias Names = [string]\nalias Lookup = map[string:int]\n```\n\n**Rules:**\n- File-scope only \u2014 cannot be declared inside a function.\n- Public by default; prefix with `private` to restrict to the declaring file.\n- Erased at compile time \u2014 `type_of()` returns the underlying type name.\n- Transitive: `alias A = int` then `alias B = A` resolves `B` to `int`.\n- Can alias primitives, structs, enums, arrays, maps, and pointers.\n- Cannot alias module-qualified types (`mod.Type`) or the wildcard type (`?`).',
   'private': '**`private`** — Restricts visibility of a function or declaration to the current file.',
   'cast': '**`cast`** — Explicit type conversion.\n\n```gray\nmut n i32 = cast(myInt, i32)\n```',
   'in': '**`in`** — Tests membership in a collection.\n\n```gray\nif 5 in numbers { println("found") }\n```',

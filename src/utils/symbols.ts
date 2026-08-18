@@ -12,7 +12,7 @@ export interface StructField {
 
 export interface GraySymbol {
   name: string;
-  kind: 'variable' | 'constant' | 'function' | 'struct' | 'enum';
+  kind: 'variable' | 'constant' | 'function' | 'struct' | 'enum' | 'alias';
   line: number;   // 0-indexed
   char: number;   // 0-indexed, start of the name
   declaration: string; // full declaration line text
@@ -27,6 +27,7 @@ const CONST_VAR_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+(?!struct\b|enu
 const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
 const STRUCT_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
 const ENUM_PATTERN   = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
+const ALIAS_PATTERN  = /^\s*(?:private\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
 
 /**
  * Extract the declared Grayscale type from a `mut` or `const` line.
@@ -169,6 +170,15 @@ export function scanSymbols(text: string): GraySymbol[] {
         char: line.indexOf(name),
         declaration: line.trim(),
         enumMembers: members,
+      });
+    } else if ((m = ALIAS_PATTERN.exec(line))) {
+      symbols.push({
+        name: m[1],
+        kind: 'alias',
+        line: i,
+        char: line.indexOf(m[1]),
+        declaration: line.trim(),
+        type: m[2].replace(/\/\/.*$/, '').trim(),
       });
     } else if ((m = FUNC_PATTERN.exec(line))) {
       symbols.push({
