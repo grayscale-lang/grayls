@@ -7,6 +7,13 @@ export interface EnumMember {
   payload?: string[];
 }
 
+export interface FuncParam {
+  name: string;
+  type: string;
+  /** Default value expression, when the parameter declares one. */
+  default?: string;
+}
+
 export interface StructField {
   name: string;
   type: string;
@@ -23,6 +30,9 @@ export interface GraySymbol {
   type?: string;           // parsed Grayscale type for mut/const declarations
   enumMembers?: EnumMember[];
   structFields?: StructField[];
+  params?: FuncParam[];
+  /** Return signature as written, e.g. `int` or `(quotient int, remainder int)`. */
+  returns?: string;
 }
 
 // Single-line declaration patterns
@@ -63,6 +73,101 @@ function extractType(line: string): string | undefined {
   const candidate = typeMatch[1].trim();
   // If the candidate is '=' it means no type annotation
   return candidate === '=' ? undefined : candidate;
+}
+
+/**
+ * Split a parameter or argument list on top-level commas, ignoring commas
+ * nested inside brackets, parens, or string literals.
+ */
+function splitTopLevel(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let current = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      current += c;
+      if (c === '\\') { current += text[++i] ?? ''; continue; }
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { quote = c; current += c; continue; }
+    if (c === '(' || c === '[' || c === '{') depth++;
+    if (c === ')' || c === ']' || c === '}') depth--;
+    if (c === ',' && depth === 0) { parts.push(current); current = ''; continue; }
+    current += c;
+  }
+  if (current.trim()) parts.push(current);
+  return parts.map(p => p.trim()).filter(Boolean);
+}
+
+/**
+ * Parse a function parameter list into names, types, and defaults.
+ *
+ * Handles grouped names sharing a type (`a, b int`), defaults
+ * (`port int = 8080`), reference params (`&buf [byte]`), wildcard types
+ * (`x ?`), and type parameters (`T <?>`).
+ */
+function parseParams(list: string): FuncParam[] {
+  const params: FuncParam[] = [];
+  // Grouped names only bind to the next part that carries a type, so collect
+  // bare names until one is found.
+  let pending: string[] = [];
+
+  for (const part of splitTopLevel(list)) {
+    let decl = part;
+    let def: string | undefined;
+    const eq = part.search(/=(?!=)/);
+    if (eq !== -1) {
+      decl = part.slice(0, eq).trim();
+      def = part.slice(eq + 1).trim() || undefined;
+    }
+
+    const bare = decl.replace(/^&\s*/, '').trim();
+    const m = bare.match(/^([A-Za-z][A-Za-z0-9_]*)\s+(.+)$/);
+    if (!m) {
+      // A name with no type yet: part of a group like `a, b int`.
+      if (/^[A-Za-z][A-Za-z0-9_]*$/.test(bare)) pending.push(bare);
+      continue;
+    }
+
+    const type = m[2].trim();
+    for (const name of [...pending, m[1]]) {
+      params.push(def === undefined ? { name, type } : { name, type, default: def });
+    }
+    pending = [];
+  }
+  return params;
+}
+
+/**
+ * Split a function declaration into its parameter list and return signature.
+ */
+function parseSignature(line: string): { params: FuncParam[]; returns?: string } {
+  const open = line.indexOf('(');
+  if (open === -1) return { params: [] };
+
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < line.length; i++) {
+    if (line[i] === '(') depth++;
+    else if (line[i] === ')') { depth--; if (depth === 0) { close = i; break; } }
+  }
+  if (close === -1) return { params: [] };
+
+  const params = parseParams(line.slice(open + 1, close));
+  const arrow = line.indexOf('->', close);
+  if (arrow === -1) return { params };
+
+  // The return signature ends at the `{` that opens the body. Return types
+  // never contain braces, so the first one is always the body.
+  let tail = line.slice(arrow + 2);
+  const brace = tail.indexOf('{');
+  if (brace !== -1) tail = tail.slice(0, brace);
+  const returns = tail.trim();
+  return { params, returns: returns || undefined };
 }
 
 /**
@@ -280,12 +385,15 @@ export function scanSymbols(text: string): GraySymbol[] {
         type: m[2].replace(/\/\/.*$/, '').trim(),
       });
     } else if ((m = FUNC_PATTERN.exec(line))) {
+      const sig = parseSignature(line);
       symbols.push({
         name: m[1],
         kind: 'function',
         line: i,
         char: line.indexOf(m[1]),
         declaration: sourceLines[i].trim(),
+        params: sig.params,
+        returns: sig.returns,
       });
     } else if ((m = MUT_PATTERN.exec(line))) {
       symbols.push({

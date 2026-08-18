@@ -95,6 +95,20 @@ function renderStruct(sym: GraySymbol): string {
   return header + `| Field | Type |\n|-------|------|\n${rows}`;
 }
 
+function renderFunction(sym: GraySymbol): string {
+  const header = `**Function** \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
+  if (!sym.params || sym.params.length === 0) return header;
+
+  const rows = sym.params
+    .map(p => `| \`${p.name}\` | \`${p.type}\` | ${p.default !== undefined ? `\`${p.default}\`` : '—'} |`)
+    .join('\n');
+
+  // Parameter names double as named-argument labels at the call site.
+  const example = sym.params.map(p => `${p.name}: ...`).join(', ');
+
+  return `${header}\n\n| Parameter | Type | Default |\n|-----------|------|---------|\n${rows}\n\nCallable with named arguments:\n\n\`\`\`gray\n${sym.name}(${example})\n\`\`\``;
+}
+
 function renderVariable(sym: GraySymbol): string {
   const kindLabel = sym.kind === 'constant' ? 'Constant' : 'Variable';
   const typeInfo  = sym.type ? ` \`${sym.type}\`` : '';
@@ -200,7 +214,7 @@ export function provideHover(
   switch (sym.kind) {
     case 'enum':     value = renderEnum(sym);    break;
     case 'struct':   value = renderStruct(sym);  break;
-    case 'function': value = `**Function** \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
+    case 'function': value = renderFunction(sym); break;
     case 'alias':    value = `**Type alias** \`${sym.name}\` → \`${sym.type ?? '?'}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
     default:         value = renderVariable(sym);
   }

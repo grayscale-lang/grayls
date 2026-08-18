@@ -54,6 +54,26 @@ const STATIC_ITEMS: CompletionItem[] = [
   ...BUILTIN_ITEMS,
 ];
 
+/**
+ * Name of the function whose argument list the cursor sits in, or null.
+ * Scans back for the innermost unclosed `(`.
+ */
+function enclosingCall(prefix: string): string | null {
+  let depth = 0;
+  for (let i = prefix.length - 1; i >= 0; i--) {
+    const c = prefix[i];
+    if (c === ')') depth++;
+    else if (c === '(') {
+      if (depth === 0) {
+        const m = prefix.slice(0, i).match(/([A-Za-z][A-Za-z0-9_]*)\s*$/);
+        return m ? m[1] : null;
+      }
+      depth--;
+    }
+  }
+  return null;
+}
+
 function getLinePrefix(doc: TextDocument, params: CompletionParams): string {
   const lines = doc.getText().split('\n');
   const line = lines[params.position.line] ?? '';
@@ -124,5 +144,23 @@ export function provideCompletion(
     detail: `${sym.kind} — ${sym.declaration}`,
   }));
 
-  return [...STATIC_ITEMS, ...symbolItems];
+  // Context: inside a user function's argument list → offer parameter names as
+  // named arguments. Not offered for builtins or stdlib functions, which do
+  // not support named arguments.
+  const namedItems: CompletionItem[] = [];
+  const call = enclosingCall(prefix);
+  if (call) {
+    const fn = fileSymbols.find(sym => sym.kind === 'function' && sym.name === call);
+    for (const p of fn?.params ?? []) {
+      namedItems.push({
+        label: `${p.name}:`,
+        kind: CompletionItemKind.Field,
+        detail: `named argument — ${p.type}${p.default !== undefined ? ` = ${p.default}` : ''}`,
+        insertText: `${p.name}: `,
+        sortText: `0${p.name}`,
+      });
+    }
+  }
+
+  return [...namedItems, ...STATIC_ITEMS, ...symbolItems];
 }
