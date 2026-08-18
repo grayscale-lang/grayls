@@ -9,7 +9,7 @@ export const KEYWORDS: string[] = [
   'alias', 'const', 'do', 'enum', 'import', 'mut', 'new', 'private', 'struct', 'use', 'using',
   // Operators / values
   'bit_and', 'bit_not', 'bit_or', 'bit_shift_left', 'bit_shift_right', 'bit_xor',
-  'cast', 'false', 'in', 'not_in', 'nil', 'range', 'true',
+  'and', 'cast', 'false', 'in', 'not_in', 'nil', 'range', 'true',
 ];
 
 export const TYPES: string[] = [
@@ -460,9 +460,9 @@ export const DOCS: Record<string, string> = {
   'func': '**`func`** — Function type for references and parameters.\n\n```gray\nconst f func(int) -> int = ()double\n```',
   'struct': '**`struct`** — Declares a user-defined composite type.\n\n```gray\nconst Point struct {\n    x int\n    y int\n}\n```',
   'enum': '**`enum`** \u2014 Declares a type with a fixed set of named variants.\n\n```gray\nconst Direction enum {\n    NORTH\n    EAST\n    SOUTH\n    WEST\n}\n```\n\nVariants are referenced as `Direction.NORTH`, or as `.NORTH` where the enum type is known from context.\n\n**Tagged enums** \u2014 variants may carry a positional data payload, which makes the enum a tagged union:\n\n```gray\nconst Shape enum {\n    Circle(float)\n    Rect(float, float)\n    Point\n}\n\nmut s Shape = Shape.Circle(3.14)\n```\n\nDestructure payloads with `when`/`is`:\n\n```gray\nwhen shape {\n    is Shape.Circle(radius) { println(radius) }\n    is Shape.Rect(w, h)     { println("${w}x${h}") }\n    is Shape.Point          { println("point") }\n}\n```\n\nAn enum becomes a tagged union if ANY variant has a payload. Payloads and explicit values (`= 5`) are mutually exclusive per variant. String enums and `#flags` enums cannot have payloads.',
-  'import': '**`import`** — Imports a standard library module.\n\n```gray\nimport @math\nimport @io\n```',
-  'using': '**`using`** — Imports a module\'s symbols into the current scope.\n\n```gray\nimport @math using *\n```',
-  'use': '**`use`** — Used with `import` to bring symbols into scope.',
+  'import': '**`import`** \u2014 Imports a module.\n\n```gray\nimport @math                 // stdlib module\nimport "./helpers.gray"      // local file\nimport c"stdio.h"            // C header\nimport and use @arrays       // import + using in one statement\n```',
+  'using': '**`using`** \u2014 Brings a module\'s members into scope for unqualified access. Valid at file scope or inside a single function.\n\n```gray\nimport @strings\nusing strings\n\ndo main() {\n    println(to_upper("hello"))\n}\n```\n\nAt function scope, only that function gets unqualified access. See also `import and use`.',
+  'use': '**`use`** \u2014 Used with `import and use` to import a module and bring its members into scope in one statement.\n\n```gray\nimport and use @strings\n\ndo main() {\n    println(to_upper("hello"))   // unqualified, no separate `using`\n}\n```\n\nEquivalent to `import @strings` followed by `using strings`.',
   'new': '**`new`** — Allocates a zero-initialized struct on the arena and returns a pointer.\n\n```gray\nmut p ^Point = new(Point)\n```',
   'alias': '**`alias`** \u2014 Creates an interchangeable name for an existing type.\n\n```gray\nalias Meters = float\nalias Vec2 = Point\nalias Names = [string]\nalias Lookup = map[string:int]\n```\n\n**Rules:**\n- File-scope only \u2014 cannot be declared inside a function.\n- Public by default; prefix with `private` to restrict to the declaring file.\n- Erased at compile time \u2014 `type_of()` returns the underlying type name.\n- Transitive: `alias A = int` then `alias B = A` resolves `B` to `int`.\n- Can alias primitives, structs, enums, arrays, maps, and pointers.\n- Cannot alias module-qualified types (`mod.Type`) or the wildcard type (`?`).',
   'private': '**`private`** — Restricts visibility of a function or declaration to the current file.',
@@ -482,6 +482,7 @@ export const DOCS: Record<string, string> = {
   'bit_not': '**`bit_not`** — Bitwise NOT (complement) prefix operator.\n\n```gray\nmut result = bit_not a\n```',
   'bit_shift_left': '**`bit_shift_left`** — Left shift operator.\n\n```gray\nmut result = 1 bit_shift_left 3  // 8\n```',
   'bit_shift_right': '**`bit_shift_right`** — Right shift operator.\n\n```gray\nmut result = 16 bit_shift_right 1  // 8\n```',
+  'and': '**`and`** \u2014 Part of the combined `import and use` statement.\n\n```gray\nimport and use @arrays\n```\n\nEquivalent to:\n\n```gray\nimport @arrays\nusing arrays\n```\n\nMultiple modules can be combined:\n\n```gray\nimport and use @arrays, @strings\n```',
 
   // --- Types ---
   'int': '**`int`** — 64-bit signed integer. Range: -2^63 to 2^63-1. Overflow-checked at runtime.\n\n```gray\nmut x int = 42\n```',

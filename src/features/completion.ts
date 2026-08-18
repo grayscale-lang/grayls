@@ -69,8 +69,9 @@ export function provideCompletion(
 
   const prefix = getLinePrefix(doc, params);
 
-  // Context: after `import @` → suggest module names
-  if (/\bimport\s+@\w*$/.test(prefix)) {
+  // Context: after `import @`, `import and use @`, or a comma continuation
+  // of either → suggest module names.
+  if (/^\s*import\s+(?:and\s+use\s+)?(?:@\w*\s*,\s*)*@\w*$/.test(prefix)) {
     return MODULE_ITEMS;
   }
 
