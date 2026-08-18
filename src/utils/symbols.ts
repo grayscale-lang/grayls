@@ -3,6 +3,8 @@ import { Position, Location } from 'vscode-languageserver/node';
 export interface EnumMember {
   name: string;
   value: number | string;
+  /** Payload types for a tagged variant, e.g. ['float', 'float'] for Rect(float, float). */
+  payload?: string[];
 }
 
 export interface StructField {
@@ -28,6 +30,8 @@ const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|func)\s+([A-Za-z][A-Za-z0-9_]*)
 const STRUCT_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
 const ENUM_PATTERN   = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
 const ALIAS_PATTERN  = /^\s*(?:private\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
+// Tagged-enum destructuring: `is Shape.Circle(radius)` or `is .Circle(radius)`
+const IS_PATTERN     = /^\s*is\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/;
 
 /**
  * Extract the declared Grayscale type from a `mut` or `const` line.
@@ -88,6 +92,15 @@ function scanEnumMembers(body: string[]): EnumMember[] {
     const trimmed = line.trim().replace(/,\s*$/, '').replace(/\/\/.*$/, '').trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
 
+    // Tagged variant with a payload: VARIANT(T) or VARIANT(T, U)
+    const tagged = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/);
+    if (tagged) {
+      const payload = tagged[2].split(',').map(t => t.trim()).filter(Boolean);
+      members.push({ name: tagged[1], value: autoInt, payload });
+      autoInt++;
+      continue;
+    }
+
     // String value: VARIANT = "..."
     const withString = trimmed.match(/^([A-Z_][A-Za-z0-9_]*)\s*=\s*"([^"]*)"/);
     if (withString) {
@@ -141,6 +154,8 @@ function scanStructFields(body: string[]): StructField[] {
 export function scanSymbols(text: string): GraySymbol[] {
   const symbols: GraySymbol[] = [];
   const lines = text.split('\n');
+  // Tagged-enum pattern bindings, resolved to payload types after the scan.
+  const bindings: { sym: GraySymbol; enumName?: string; variant: string; index: number }[] = [];
   let i = 0;
 
   while (i < lines.length) {
@@ -170,6 +185,23 @@ export function scanSymbols(text: string): GraySymbol[] {
         char: line.indexOf(name),
         declaration: line.trim(),
         enumMembers: members,
+      });
+    } else if ((m = IS_PATTERN.exec(line))) {
+      const [, enumName, variant, rawBindings] = m;
+      let searchFrom = line.indexOf('(', m.index);
+      rawBindings.split(',').forEach((raw, index) => {
+        const name = raw.trim();
+        searchFrom = line.indexOf(name, searchFrom);
+        if (!name || name === '_' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return;
+        const sym: GraySymbol = {
+          name,
+          kind: 'variable',
+          line: i,
+          char: searchFrom,
+          declaration: line.trim(),
+        };
+        symbols.push(sym);
+        bindings.push({ sym, enumName, variant, index });
       });
     } else if ((m = ALIAS_PATTERN.exec(line))) {
       symbols.push({
@@ -209,6 +241,20 @@ export function scanSymbols(text: string): GraySymbol[] {
     }
 
     i++;
+  }
+
+  // Resolve destructured payload types now that every enum has been scanned.
+  for (const b of bindings) {
+    const enums = symbols.filter(
+      sym => sym.kind === 'enum' && (b.enumName === undefined || sym.name === b.enumName),
+    );
+    for (const e of enums) {
+      const member = e.enumMembers?.find(mem => mem.name === b.variant);
+      if (member?.payload && member.payload[b.index]) {
+        b.sym.type = member.payload[b.index];
+        break;
+      }
+    }
   }
 
   return symbols;

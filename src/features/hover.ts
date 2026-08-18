@@ -58,6 +58,15 @@ function renderEnum(sym: GraySymbol): string {
   if (!sym.enumMembers || sym.enumMembers.length === 0) {
     return header + `\`\`\`gray\n${sym.declaration}\n\`\`\``;
   }
+  const tagged = sym.enumMembers.some(m => m.payload && m.payload.length > 0);
+
+  if (tagged) {
+    const rows = sym.enumMembers
+      .map(m => `| \`${m.name}\` | ${m.payload && m.payload.length > 0 ? `\`${m.payload.join(', ')}\`` : '—'} |`)
+      .join('\n');
+    return `**Tagged enum** \`${sym.name}\`\n\n| Variant | Payload |\n|---------|---------|\n${rows}`;
+  }
+
   const rows = sym.enumMembers
     .map(m => `| \`${m.name}\` | ${m.value} |`)
     .join('\n');
