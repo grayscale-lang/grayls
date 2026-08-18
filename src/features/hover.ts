@@ -8,6 +8,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
+  wildcardAt,
   wordAt,
   moduleWordAt,
   compositeTypeAt,
@@ -111,7 +112,15 @@ export function provideHover(
     };
   }
 
-  // 2. Attribute: #doc, #json, #flags, #strict, #discard
+  // 2. Wildcard type `?` / type parameter `<?>`
+  const wildcard = wildcardAt(text, params.position);
+  if (wildcard && DOCS[wildcard]) {
+    return {
+      contents: { kind: MarkupKind.Markdown, value: DOCS[wildcard] },
+    };
+  }
+
+  // 3. Attribute: #doc, #json, #flags, #strict, #discard
   const attr = attributeAt(text, params.position);
   if (attr && DOCS[attr]) {
     return {
@@ -119,7 +128,7 @@ export function provideHover(
     };
   }
 
-  // 3. Module function: arrays.append, math.sqrt, etc.
+  // 4. Module function: arrays.append, math.sqrt, etc.
   const modWord = moduleWordAt(text, params.position);
   if (modWord) {
     const key = `${modWord.module}.${modWord.fn}`;
@@ -133,14 +142,14 @@ export function provideHover(
   const word = wordAt(text, params.position);
   if (!word) return null;
 
-  // 4. Static docs: keywords, primitive types, builtins, module names
+  // 5. Static docs: keywords, primitive types, builtins, module names
   if (DOCS[word]) {
     return {
       contents: { kind: MarkupKind.Markdown, value: DOCS[word] },
     };
   }
 
-  // 5. User-defined symbols
+  // 6. User-defined symbols
   const symbols = scanSymbols(text);
   const sym = symbols.find(s => s.name === word);
   if (!sym) return null;

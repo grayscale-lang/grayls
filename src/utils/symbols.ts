@@ -261,6 +261,27 @@ export function scanSymbols(text: string): GraySymbol[] {
 }
 
 /**
+ * If the cursor is on a wildcard type, return its doc key.
+ *
+ * Returns `'<?>'` when the cursor sits inside a `<?>` type-parameter
+ * annotation, `'?'` for a bare wildcard type, and null otherwise.
+ */
+export function wildcardAt(text: string, position: Position): string | null {
+  const lines = text.split('\n');
+  if (position.line >= lines.length) return null;
+  const line = lines[position.line];
+  const ch = position.character;
+
+  // The cursor may sit on either side of the character it refers to.
+  for (const i of [ch, ch - 1]) {
+    if (i < 0 || i >= line.length || line[i] !== '?') continue;
+    if (line[i - 1] === '<' && line[i + 1] === '>') return '<?>';
+    return '?';
+  }
+  return null;
+}
+
+/**
  * If the cursor is on an attribute name preceded by `#`, return the attribute
  * key including the hash (e.g. `#discard`). Returns null otherwise.
  */
