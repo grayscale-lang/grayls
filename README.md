@@ -109,15 +109,54 @@ To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search 
 
 ---
 
-### Neovim (with nvim-lspconfig)
+### Neovim
 
-**Step 1:** Install `nvim-lspconfig` if you haven't already (e.g. via lazy.nvim):
+#### Prerequisites
+
+Before configuring Neovim, build the server:
+
+```sh
+git clone https://github.com/grayscale-lang/grayls
+cd grayls
+npm install
+npm run build
+```
+
+This produces `out/server.js`, which is the path you point Neovim at below.
+Note the absolute path — the rest of this section refers to it as
+`/path/to/grayls/out/server.js`.
+
+You also need Node.js v18+, and `gray` on your `$PATH` for diagnostics. Every
+other feature works without it.
+
+#### Step 1: Register the `gray` filetype
+
+Neovim does not know about `.gray` files out of the box. Without this, the
+server never attaches:
+
+```lua
+vim.filetype.add({ extension = { gray = 'gray' } })
+```
+
+#### Step 2: Configure the server
+
+**Neovim 0.11+** (built-in `vim.lsp.config`, no plugin required):
+
+```lua
+vim.lsp.config.grayls = {
+  cmd = { 'node', '/path/to/grayls/out/server.js', '--stdio' },
+  filetypes = { 'gray' },
+  root_markers = { '.git' },
+}
+
+vim.lsp.enable('grayls')
+```
+
+**Older Neovim, via `nvim-lspconfig`:**
 
 ```lua
 { "neovim/nvim-lspconfig" }
 ```
-
-**Step 2:** Add this to your Neovim config:
 
 ```lua
 local lspconfig = require('lspconfig')
@@ -126,7 +165,7 @@ local configs = require('lspconfig.configs')
 if not configs.grayls then
   configs.grayls = {
     default_config = {
-      cmd = { 'node', '/Users/you/code/grayls/out/server.js', '--stdio' },
+      cmd = { 'node', '/path/to/grayls/out/server.js', '--stdio' },
       filetypes = { 'gray' },
       root_dir = lspconfig.util.root_pattern('.git', '*.gray'),
       single_file_support = true,
@@ -137,15 +176,78 @@ end
 lspconfig.grayls.setup({})
 ```
 
-**Step 3:** Register the `gray` filetype:
+Open a `.gray` file and the server attaches automatically.
+
+#### Step 3: Syntax highlighting (optional)
+
+The language server provides diagnostics, completion, hover, and
+go-to-definition — but not syntax highlighting. For that, use the Tree-sitter
+grammar at [`grayscale-lang/tree-sitter-gray`](https://github.com/grayscale-lang/tree-sitter-gray).
+
+With `nvim-treesitter` installed, register the parser:
 
 ```lua
-vim.filetype.add({ extension = { gray = 'gray' } })
+local parsers = require('nvim-treesitter.parsers').get_parser_configs()
+
+parsers.gray = {
+  install_info = {
+    url = 'https://github.com/grayscale-lang/tree-sitter-gray',
+    files = { 'src/parser.c' },
+    branch = 'main',
+  },
+  filetype = 'gray',
+}
 ```
 
-Neovim attaches the server automatically when you open a `.gray` file. Run `:LspInfo` to confirm.
+Then run `:TSInstall gray`.
 
-**After updating server code:** run `npm run build`, then `:LspRestart` inside Neovim (or close and reopen the file).
+`nvim-treesitter` does not install queries for third-party parsers, so the
+highlight queries have to go on your runtimepath yourself. Copy them from the
+grammar repository:
+
+```sh
+git clone https://github.com/grayscale-lang/tree-sitter-gray
+mkdir -p ~/.config/nvim/queries/gray
+cp tree-sitter-gray/queries/highlights.scm ~/.config/nvim/queries/gray/
+```
+
+#### Troubleshooting
+
+**Check whether the server attached.** With a `.gray` file open:
+
+```vim
+:checkhealth vim.lsp
+```
+
+On older versions, use `:LspInfo`. If no client is listed, the filetype is
+usually the cause — confirm with `:set filetype?`, which must report `gray`.
+
+**Check the server actually starts.** Run it by hand; it should sit and wait
+for input rather than exiting or erroring:
+
+```sh
+node /path/to/grayls/out/server.js --stdio
+```
+
+If this fails, `out/server.js` is missing or stale — re-run `npm run build`.
+
+**Read the log** for startup errors and crashes:
+
+```vim
+:LspLog
+```
+
+**No diagnostics, but hover and completion work.** Diagnostics shell out to
+`gray`, so it must be on the `$PATH` Neovim inherits. Verify from inside
+Neovim, not just your shell:
+
+```vim
+:echo exepath('gray')
+```
+
+An empty result means Neovim cannot see it.
+
+**After changing server code:** run `npm run build`, then `:LspRestart`.
 
 ---
 
