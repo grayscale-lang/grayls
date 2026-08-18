@@ -8,6 +8,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
+  implicitVariantAt,
   wildcardAt,
   wordAt,
   moduleWordAt,
@@ -157,17 +158,40 @@ export function provideHover(
     }
   }
 
+  // 5. Implicit enum selector: `.NORTH`
+  const variant = implicitVariantAt(text, params.position);
+  if (variant) {
+    const owners = scanSymbols(text).filter(
+      sym => sym.kind === 'enum' && sym.enumMembers?.some(mem => mem.name === variant),
+    );
+    if (owners.length > 0) {
+      const body = owners
+        .map(owner => {
+          const mem = owner.enumMembers!.find(m => m.name === variant)!;
+          const payload = mem.payload && mem.payload.length > 0 ? `(${mem.payload.join(', ')})` : '';
+          return `\`${owner.name}.${variant}${payload}\`${payload ? '' : ` = ${mem.value}`}`;
+        })
+        .join('\n\n');
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: `**Enum variant** \`.${variant}\`\n\n${body}\n\nImplicit selector \u2014 the enum type is inferred from context.`,
+        },
+      };
+    }
+  }
+
   const word = wordAt(text, params.position);
   if (!word) return null;
 
-  // 5. Static docs: keywords, primitive types, builtins, module names
+  // 6. Static docs: keywords, primitive types, builtins, module names
   if (DOCS[word]) {
     return {
       contents: { kind: MarkupKind.Markdown, value: DOCS[word] },
     };
   }
 
-  // 6. User-defined symbols
+  // 7. User-defined symbols
   const symbols = scanSymbols(text);
   const sym = symbols.find(s => s.name === word);
   if (!sym) return null;

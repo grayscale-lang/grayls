@@ -328,6 +328,29 @@ export function scanSymbols(text: string): GraySymbol[] {
 }
 
 /**
+ * If the cursor is on the variant of an implicit enum selector (`.NORTH`),
+ * return the variant name. Returns null when the dot is a member access on a
+ * value or module (`Direction.NORTH`, `strings.to_upper`).
+ */
+export function implicitVariantAt(text: string, position: Position): string | null {
+  const lines = text.split('\n');
+  if (position.line >= lines.length) return null;
+  const line = lines[position.line];
+  const ch = position.character;
+
+  let start = ch;
+  let end = ch;
+  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
+  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
+  if (start === end) return null;
+  if (start === 0 || line[start - 1] !== '.') return null;
+  // A preceding identifier or `)`/`]` makes this a member access, not a selector.
+  if (start >= 2 && /[A-Za-z0-9_)\]]/.test(line[start - 2])) return null;
+
+  return line.slice(start, end);
+}
+
+/**
  * If the cursor is on a wildcard type, return its doc key.
  *
  * Returns `'<?>'` when the cursor sits inside a `<?>` type-parameter

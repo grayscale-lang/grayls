@@ -87,6 +87,27 @@ export function provideCompletion(
   const text = doc.getText();
   const fileSymbols = scanSymbols(text);
 
+  // Context: a bare `.` not preceded by an identifier → implicit enum selector.
+  // Offer every variant declared in the file; the compiler resolves the type.
+  if (/(?:^|[\s({\[,:=!<>+\-*/])\.\w*$/.test(prefix)) {
+    const variantItems: CompletionItem[] = [];
+    for (const sym of fileSymbols) {
+      if (sym.kind !== 'enum' || !sym.enumMembers) continue;
+      for (const mem of sym.enumMembers) {
+        const payload = mem.payload && mem.payload.length > 0
+          ? `(${mem.payload.join(', ')})`
+          : '';
+        variantItems.push({
+          label: mem.name,
+          kind: CompletionItemKind.EnumMember,
+          detail: `${sym.name}.${mem.name}${payload}`,
+          documentation: payload ? undefined : `= ${mem.value}`,
+        });
+      }
+    }
+    if (variantItems.length > 0) return variantItems;
+  }
+
   const symbolItems: CompletionItem[] = fileSymbols.map(sym => ({
     label: sym.name,
     kind: sym.kind === 'function'
