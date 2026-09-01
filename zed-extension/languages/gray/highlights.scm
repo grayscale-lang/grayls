@@ -44,9 +44,11 @@
   "mut"
   "const"
   "do"
+  "fn"
   "return"
   "if"
   "or"
+  "elif"
   "otherwise"
   "else"
   "alias"
@@ -57,6 +59,7 @@
   "loop"
   "in"
   "not_in"
+  "!in"
   "range"
   "import"
   "and"
@@ -66,11 +69,13 @@
   "enum"
   "new"
   "when"
+  "switch"
   "is"
+  "case"
   "default"
-  "module"
   "private"
   "ensure"
+  "defer"
   "or_return"
   "cast"
 ] @keyword
@@ -118,7 +123,7 @@
 
 ; Builtin types that are identifiers (runtime/stdlib types)
 ((identifier) @type.builtin
-  (#match? @type.builtin "^(File|Database|Error|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router)$"))
+  (#match? @type.builtin "^(File|Database|Error|SourceLocation|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router|UUID)$"))
 
 ; Type annotations - user defined types
 (type (identifier) @type.builtin)
@@ -185,6 +190,10 @@
 (attribute
   name: (identifier) @tag)
 
+; Single-line attribute container: #[doc("x"), json]
+(attribute_list
+  (identifier) @tag)
+
 ; Import statements
 (import_statement) @keyword
 (import_and_use_statement) @keyword
@@ -197,10 +206,6 @@
 ; Import alias
 (import_statement
   alias: (identifier) @namespace)
-
-; Module declarations (module mymodule)
-(module_declaration
-  name: (identifier) @namespace)
 
 ; Using statements (using std, using arrays)
 (using_statement
@@ -218,7 +223,7 @@
 ; Built-in function calls
 (call_expression
   function: (identifier) @function.builtin
-  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|append|input|read_int|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed)$"))
+  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|append|input|read_int|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
 
 ; cast is a dedicated expression node - highlight keyword portion
 (cast_expression

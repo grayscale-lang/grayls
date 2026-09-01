@@ -3,10 +3,11 @@
 
 export const KEYWORDS: string[] = [
   // Control flow
-  'as_long_as', 'break', 'continue', 'default', 'else', 'ensure', 'for', 'for_each',
-  'if', 'is', 'loop', 'or', 'or_return', 'otherwise', 'return', 'when', 'while',
+  'as_long_as', 'break', 'case', 'continue', 'default', 'defer', 'elif', 'else', 'ensure',
+  'for', 'for_each', 'if', 'is', 'loop', 'or', 'or_return', 'otherwise', 'return', 'switch',
+  'when', 'while',
   // Declarations
-  'alias', 'const', 'do', 'enum', 'import', 'mut', 'new', 'private', 'struct', 'use', 'using',
+  'alias', 'const', 'do', 'enum', 'fn', 'import', 'mut', 'new', 'private', 'struct', 'use', 'using',
   // Operators / values
   'bit_and', 'bit_not', 'bit_or', 'bit_shift_left', 'bit_shift_right', 'bit_xor',
   'and', 'cast', 'false', 'in', 'not_in', 'nil', 'range', 'true',
@@ -14,7 +15,7 @@ export const KEYWORDS: string[] = [
 
 export const TYPES: string[] = [
   // Primitive
-  'bool', 'byte', 'char', 'Error', 'float', 'func', 'int', 'map', 'string', 'uint',
+  'bool', 'byte', 'char', 'Error', 'float', 'func', 'int', 'map', 'SourceLocation', 'string', 'uint',
   // Sized integers
   'i8', 'i16', 'i32', 'i64', 'i128', 'i256',
   'u8', 'u16', 'u32', 'u64', 'u128', 'u256',
@@ -30,7 +31,7 @@ export const BUILTINS: string[] = [
   // Collections / memory
   'len', 'copy', 'new', 'ref', 'addr', 'raw',
   // Type utilities
-  'type_of', 'size_of', 'cast', 'fields',
+  'type_of', 'size_of', 'cast', 'fields', 'here',
   // String utilities
   'to_char', 'char_count', 'c_string',
   // Error / control
@@ -50,14 +51,14 @@ export const BUILTINS: string[] = [
 ];
 
 export const STDLIB_MODULES: string[] = [
-  'arrays', 'strings', 'maps', 'math', 'time', 'random',
+  'arrays', 'strings', 'chars', 'maps', 'math', 'time', 'random',
   'json', 'io', 'os', 'http', 'crypto', 'encoding',
   'uuid', 'bytes', 'binary', 'sqlite', 'server', 'regex', 'csv',
-  'net', 'threads', 'sync', 'channels', 'mem', 'atomic', 'fmt', 'strconv',
+  'net', 'threads', 'sync', 'channels', 'mem', 'atomic', 'fmt', 'strconv', 'runtime',
 ];
 
 export const ATTRIBUTES: string[] = [
-  'doc', 'json', 'flags', 'strict', 'discard',
+  'doc', 'json', 'flags', 'strict', 'discard', 'deprecated', 'test',
 ];
 
 // ---------------------------------------------------------------------------
@@ -131,6 +132,10 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strings.slice':         '**`strings.slice(s string, start int, end int) -> string`** — Extract substring by byte index.',
   'strings.to_chars':      '**`strings.to_chars(s string) -> [char]`** — Convert string to char array.',
   'strings.from_chars':    '**`strings.from_chars(chars [char]) -> string`** — Convert char array to string.',
+
+  // @chars
+  'chars.to_upper': '**`chars.to_upper(c char) -> char`** — ASCII uppercase. Non-ASCII-letter codepoints are returned unchanged.',
+  'chars.to_lower': '**`chars.to_lower(c char) -> char`** — ASCII lowercase. Non-ASCII-letter codepoints are returned unchanged.',
 
   // @maps
   'maps.is_empty':        '**`maps.is_empty(m map[K:V]) -> bool`** — Check if map is empty.',
@@ -432,6 +437,20 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strconv.from_bool':   '**`strconv.from_bool(b bool) -> string`** — Convert boolean to "true" or "false".',
   'strconv.is_numeric':  '**`strconv.is_numeric(s string) -> bool`** — True if string is a valid numeric representation.',
   'strconv.is_integer':  '**`strconv.is_integer(s string) -> bool`** — True if string is a valid integer.',
+
+  // @runtime
+  'runtime.arena_usage':  '**`runtime.arena_usage() -> int`** — Bytes currently used in the default (scope) arena.',
+  'runtime.heap_usage':   '**`runtime.heap_usage() -> int`** — Bytes currently used in the heap arena (backs `new()`).',
+  'runtime.total_usage':  '**`runtime.total_usage() -> int`** — Combined default + heap arena bytes currently used.',
+  'runtime.peak_usage':   '**`runtime.peak_usage() -> int`** — High-water mark of combined arena bytes committed during execution.',
+  'runtime.alloc_count':  '**`runtime.alloc_count() -> int`** — Total arena allocations since program start.',
+  'runtime.arena_blocks': '**`runtime.arena_blocks() -> int`** — Number of blocks chained in the default arena.',
+  'runtime.heap_blocks':  '**`runtime.heap_blocks() -> int`** — Number of blocks chained in the heap arena.',
+  'runtime.arena_limit':  '**`runtime.arena_limit() -> int`** — Current arena growth limit in bytes.',
+  'runtime.version':      '**`runtime.version() -> string`** — Grayscale version that compiled this binary.',
+  'runtime.call_depth':   '**`runtime.call_depth() -> int`** — Current call stack depth.',
+  'runtime.call_limit':   '**`runtime.call_limit() -> int`** — Maximum allowed call stack depth (10,000).',
+  'runtime.uptime':       '**`runtime.uptime() -> float`** — Seconds elapsed since the program started.',
 };
 
 // ---------------------------------------------------------------------------
@@ -440,13 +459,15 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
 
 export const DOCS: Record<string, string> = {
   // --- Keywords ---
-  'mut': '**`mut`** — Declares a mutable variable.\n\n```gray\nmut x int = 42\nmut name string = "hello"\n```',
+  'mut': '**`mut`** — Declares a mutable variable. Variables are mutable by default, so `mut` is optional — it documents intent but changes nothing.\n\n```gray\nx int = 42          // mutable (default)\nmut x int = 42      // identical, explicit\nname = "hello"      // mutable, type inferred\n```',
   'const': '**`const`** — Declares an immutable constant or a named struct/enum type.\n\n```gray\nconst PI float = 3.14159\nconst Point struct { x int; y int }\n```',
   'if': '**`if`** — Conditional branch. Branches on a boolean expression.\n\n```gray\nif x > 10 {\n    println("big")\n} otherwise {\n    println("small")\n}\n```',
   'otherwise': '**`otherwise`** — The else branch of an `if` or `when` statement. Identical to `else`.',
   'else': '**`else`** — Alias for `otherwise`. The default branch of an `if` or `when` statement.',
-  'when': '**`when`** — Pattern-matching switch. Compares a value against a list of cases.\n\n```gray\nwhen x {\n    is 1 { println("one") }\n    is 2 { println("two") }\n    default { println("other") }\n}\n```',
-  'is': '**`is`** — Used inside `when` to introduce a match arm.',
+  'when': '**`when`** — Pattern-matching switch. Compares a value against a list of cases. `switch` is an alias.\n\n```gray\nwhen x {\n    is 1 { println("one") }\n    is 2 { println("two") }\n    default { println("other") }\n}\n```',
+  'switch': '**`switch`** — Alias for `when`. A file that writes `switch` must also write `case` (not `is`); mixing dialects is `E2088`.',
+  'is': '**`is`** — Introduces a match arm inside `when`. `case` is the alias used with `switch`.',
+  'case': '**`case`** — Alias for `is`, used inside a `switch` block. Pairs with `switch`; mixing with `when`/`is` is `E2088`.',
   'default': '**`default`** — The fallback arm of a `when` expression.',
   'for': '**`for`** — Range-based loop.\n\n```gray\nfor i in range(0, 10) {\n    println(i)\n}\n```',
   'for_each': '**`for_each`** — Iterates over every element of a collection.\n\n```gray\nfor_each item in items {\n    println(item)\n}\n```',
@@ -456,7 +477,8 @@ export const DOCS: Record<string, string> = {
   'break': '**`break`** — Exits the innermost loop.',
   'continue': '**`continue`** — Skips to the next iteration of the innermost loop.',
   'return': '**`return`** — Returns a value from a function.\n\n```gray\ndo add(a int, b int) -> int {\n    return a + b\n}\n```',
-  'do': '**`do`** — Declares a function (with or without a return type).\n\n```gray\ndo main() {\n    println("Hello, Grayscale!")\n}\n\ndo add(a int, b int) -> int {\n    return a + b\n}\n```',
+  'do': '**`do`** — Declares a function (with or without a return type). `fn` is an alias.\n\n```gray\ndo main() {\n    println("Hello, Grayscale!")\n}\n\ndo add(a int, b int) -> int {\n    return a + b\n}\n```',
+  'fn': '**`fn`** — Alias for `do`. Declares a function. A file picks one spelling; mixing `fn` and `do` is `E2088`.',
   'func': '**`func`** — Function type for references and parameters.\n\n```gray\nconst f func(int) -> int = ()double\n```',
   'struct': '**`struct`** — Declares a user-defined composite type.\n\n```gray\nconst Point struct {\n    x int\n    y int\n}\n```',
   'enum': '**`enum`** \u2014 Declares a type with a fixed set of named variants.\n\n```gray\nconst Direction enum {\n    NORTH\n    EAST\n    SOUTH\n    WEST\n}\n```\n\nVariants are referenced as `Direction.NORTH`, or as `.NORTH` where the enum type is known from context.\n\n**Tagged enums** \u2014 variants may carry a positional data payload, which makes the enum a tagged union:\n\n```gray\nconst Shape enum {\n    Circle(float)\n    Rect(float, float)\n    Point\n}\n\nmut s Shape = Shape.Circle(3.14)\n```\n\nDestructure payloads with `when`/`is`:\n\n```gray\nwhen shape {\n    is Shape.Circle(radius) { println(radius) }\n    is Shape.Rect(w, h)     { println("${w}x${h}") }\n    is Shape.Point          { println("point") }\n}\n```\n\nAn enum becomes a tagged union if ANY variant has a payload. Payloads and explicit values (`= 5`) are mutually exclusive per variant. String enums and `#flags` enums cannot have payloads.',
@@ -470,9 +492,11 @@ export const DOCS: Record<string, string> = {
   'in': '**`in`** — Tests membership in a collection.\n\n```gray\nif 5 in numbers { println("found") }\n```',
   'not_in': '**`not_in`** — Tests non-membership in a collection.\n\n```gray\nif 5 not_in numbers { println("missing") }\n```',
   'range': '**`range`** — Creates an integer range for iteration.\n\n```gray\nfor_each i in range(0, 10) { println(i) }\nfor_each i in range(0, 10, 2) { println(i) }  // step 2\n```',
-  'or': '**`or`** — Error-propagation operator or else-if branch.\n\n```gray\nmut val = risky() or { return }\n\nif x < 0 {\n    println("negative")\n} or x == 0 {\n    println("zero")\n}\n```',
+  'or': '**`or`** — Error-propagation operator or else-if branch. `elif` is the alias for the else-if branch.\n\n```gray\nmut val = risky() or { return }\n\nif x < 0 {\n    println("negative")\n} or x == 0 {\n    println("zero")\n}\n```',
+  'elif': '**`elif`** — Alias for the `or` else-if branch. Pairs with `else` (not `otherwise`); mixing `elif`/`or` in one file is `E2088`.',
   'or_return': '**`or_return`** — Returns early if the expression is an Error.',
-  'ensure': '**`ensure`** — Deferred cleanup. Runs when the surrounding function exits.\n\n```gray\nensure cleanup()\n```',
+  'ensure': '**`ensure`** — Deferred cleanup. Runs when the surrounding function exits. `defer` is an alias.\n\n```gray\nensure cleanup()\n```',
+  'defer': '**`defer`** — Alias for `ensure`. Runs the given call when the surrounding function exits. Mixing `defer` and `ensure` in one file is `E2088`.',
   'true': '**`true`** — Boolean literal representing the true value.',
   'false': '**`false`** — Boolean literal representing the false value.',
   'nil': '**`nil`** — Represents the absence of a value (null pointer).',
@@ -506,6 +530,7 @@ export const DOCS: Record<string, string> = {
   'u64': '**`u64`** — 64-bit unsigned integer. Same as `uint` but explicitly sized.',
   'u128': '**`u128`** — 128-bit unsigned integer (struct-based). Construct with `u128(value)`.',
   'u256': '**`u256`** — 256-bit unsigned integer (struct-based). Construct with `u256(value)`.',
+  'SourceLocation': '**`SourceLocation`** — Compiler-provided struct returned by `here()`. Fields: `file string`, `line int`, `column int`. Always reserved; no import needed.',
   'f32': '**`f32`** — 32-bit IEEE 754 single-precision floating-point.',
   'f64': '**`f64`** — 64-bit IEEE 754 double-precision floating-point. Equivalent to `float`.',
 
@@ -519,6 +544,7 @@ export const DOCS: Record<string, string> = {
   'type_of': '**`type_of(value) -> string`** — Returns the Grayscale type name as a string (e.g. `"int"`, `"string"`).',
   'size_of': '**`size_of(Type) -> int`** — Returns the size of a type in bytes.',
   'fields': '**`fields(instance) -> [string]`** \u2014 Returns the field names of a struct as an array of strings, in declaration order.\n\nAccepts struct instances and pointers to structs.\n\n```gray\nconst Point struct {\n    x int\n    y int\n}\n\nmut p = Point{x: 1, y: 2}\nprintln(fields(p))   // {"x", "y"}\n```',
+  'here': '**`here() -> SourceLocation`** — Returns the call site’s source location: `file` (string), `line` (int), `column` (int). No import required.\n\n```gray\nmut loc = here()\nprintln("${loc.file}:${loc.line}")\n```',
   'copy': '**`copy(value) -> T`** — Creates a deep copy of any value.',
   'ref': '**`ref(variable) -> ref<T>`** — Creates a transparent reference (alias) to a variable.',
   'addr': '**`addr(variable) -> ^T`** — Returns the memory address of a variable as a pointer.',
@@ -549,10 +575,13 @@ export const DOCS: Record<string, string> = {
   '#flags': '**`#flags`** \u2014 Marks an enum as a bitflag set. Variant values become powers of 2 instead of auto-incrementing from 0.\n\n```gray\n#flags\nconst Permissions enum {\n    READ      // 1\n    WRITE     // 2\n    EXECUTE   // 4\n}\n```',
   '#strict': '**`#strict`** \u2014 Applied to a `when` block, requires every variant of the matched enum to be handled.\n\n```gray\n#strict\nwhen dir {\n    is .NORTH { }\n    is .EAST  { }\n    is .SOUTH { }\n    is .WEST  { }\n}\n```',
   '#discard': '**`#discard`** \u2014 Marks a function whose return value may safely be ignored by callers.\n\nWithout `#discard`, calling a non-void function as a bare statement produces **E5011** (return value not used). With it, callers may drop the result.\n\n```gray\n#discard\ndo log(msg string) -> int {\n    println(msg)\n    return 0\n}\n\ndo main() {\n    log("hello")   // no E5011\n}\n```\n\nApplies to plain functions and struct functions. Cannot be applied to structs, enums, or variables (E2002), nor to void functions (E5042).',
+  '#deprecated': '**`#deprecated`** / **`#deprecated("...")`** \u2014 Marks a function, struct, or enum as deprecated. Every reference to the item warns with **W3007**; the optional string names a replacement.\n\n```gray\n#deprecated("use parse_v2 instead")\ndo parse(s string) -> int {\n    return 0\n}\n```\n\nDeclaration-only \u2014 not yet supported on struct functions (E2002).',
+  '#test': '**`#test`** \u2014 Marks a function as a test. Run by `gray test` and stripped from normal builds.\n\n```gray\n#test\ndo adds_two_numbers() {\n    assert(add(2, 2) == 4)\n}\n```\n\nCannot be applied to `main` (it is the program entry point). Attributes may also be grouped on one line: `#[test]`, `#[doc("x"), json]`.',
 
   // --- Stdlib modules ---
   'arrays': '**`@arrays`** — Array utilities: `append`, `remove`, `contains`, `reverse`, `sort`, `slice`, `flatten`, `map`, `filter`, `reduce`, `any`, `all`, etc.',
   'strings': '**`@strings`** — String manipulation: `split`, `join`, `trim`, `contains`, `starts_with`, `ends_with`, `replace`, `to_upper`, `to_lower`, `char_at`, `to_chars`, `from_chars`, etc.',
+  'chars': '**`@chars`** — Scalar `char` operations: `to_upper`, `to_lower` (ASCII case folding). Character classification predicates live in `@strings`.',
   'maps': '**`@maps`** — Map utilities: `get_keys`, `get_values`, `has_key`, `remove_key`, `merge`, `is_equal`, etc.',
   'math': '**`@math`** — Math functions: `abs`, `sqrt`, `pow`, `log`, `sin`, `cos`, `tan`, `ceil`, `floor`, `round`, `min`, `max`, `clamp`, `lerp`, etc.',
   'time': '**`@time`** — Time utilities: `now`, `format`, `to_iso`, `date`, `tick`, `elapsed_ms`, `diff`, etc.',
@@ -578,4 +607,5 @@ export const DOCS: Record<string, string> = {
   'atomic': '**`@atomic`** — Lock-free atomics: `load`, `store`, `add`, `cas`, `spinlock`, `fence`.',
   'fmt': '**`@fmt`** — Formatted output: `printf`, `sprintf`, `pad_left`, `pad_right`, `int_to_hex`, `float_fixed`.',
   'strconv': '**`@strconv`** — String conversions: `to_int`, `to_float`, `to_bool`, `from_int`, `is_numeric`, `is_integer`.',
+  'runtime': '**`@runtime`** — Read-only introspection into the compiler-managed arenas, execution state, and build info: `arena_usage`, `heap_usage`, `peak_usage`, `alloc_count`, `call_depth`, `version`, `uptime`, etc.',
 };

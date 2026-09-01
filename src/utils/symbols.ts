@@ -38,12 +38,25 @@ export interface GraySymbol {
 // Single-line declaration patterns
 const MUT_PATTERN    = /^\s*mut\s+([A-Za-z][A-Za-z0-9_]*)/;
 const CONST_VAR_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+(?!struct\b|enum\b)/;
-const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
+const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|fn|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
+// Keyword-less variable declaration: `mut` is optional, so `count int = 0` and
+// `name, other int` are declarations. A type token is required after the name —
+// the fully-inferred form (`name = expr`) is indistinguishable from a plain
+// assignment and is left to the assignment path.
+const BARE_VAR_PATTERN = /^\s*(?:private\s+)?((?:[A-Za-z][A-Za-z0-9_]*\s*,\s*)*[A-Za-z][A-Za-z0-9_]*)\s+(\[|\^|map\b|[A-Za-z][A-Za-z0-9_]*)/;
+// Line-leading words that start a statement, never a keyword-less declaration.
+const NON_DECL_HEADS = new Set([
+  'return', 'for', 'for_each', 'if', 'when', 'switch', 'otherwise', 'else', 'or',
+  'elif', 'is', 'case', 'default', 'break', 'continue', 'loop', 'while',
+  'as_long_as', 'import', 'use', 'using', 'ensure', 'defer', 'new', 'and',
+  'const', 'mut', 'do', 'fn', 'func', 'alias', 'private', 'range', 'cast',
+  'in', 'not_in', 'println', 'print', 'eprintln', 'eprint',
+]);
 const STRUCT_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
 const ENUM_PATTERN   = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
 const ALIAS_PATTERN  = /^\s*(?:private\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
 // Tagged-enum destructuring: `is Shape.Circle(radius)` or `is .Circle(radius)`
-const IS_PATTERN     = /^\s*is\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/;
+const IS_PATTERN     = /^\s*(?:is|case)\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/;
 
 /**
  * Extract the declared Grayscale type from a `mut` or `const` line.
@@ -73,6 +86,18 @@ function extractType(line: string): string | undefined {
   const candidate = typeMatch[1].trim();
   // If the candidate is '=' it means no type annotation
   return candidate === '=' ? undefined : candidate;
+}
+
+/**
+ * Extract the type token from the text immediately following a keyword-less
+ * declaration's name list (e.g. ` int = 0`, ` [byte]`, ` map[string:int]`).
+ */
+function extractTypeAfter(afterNames: string): string | undefined {
+  const s = afterNames.trim();
+  const mt = s.match(
+    /^(\[\[.*?\]\]|\[.*?\]|map\[[^\]]*\]|\^?[A-Za-z][A-Za-z0-9_]*(?:\[[^\]]*\])?)/,
+  );
+  return mt ? mt[1].trim() : undefined;
 }
 
 /**
@@ -328,6 +353,28 @@ export function scanSymbols(text: string): GraySymbol[] {
   const sourceLines = text.split('\n');
   // Tagged-enum pattern bindings, resolved to payload types after the scan.
   const bindings: { sym: GraySymbol; enumName?: string; variant: string; index: number }[] = [];
+
+  // Line indices that sit directly in a struct/enum body (field region, not a
+  // nested struct-function body). `name type` there is a field, not a
+  // keyword-less variable declaration, so BARE_VAR_PATTERN must skip them.
+  const fieldRegion = new Set<number>();
+  {
+    let rel = -1; // -1 = not in a struct/enum block; >=0 = brace depth within it
+    for (let j = 0; j < lines.length; j++) {
+      const l = lines[j];
+      if (rel < 0) {
+        if (STRUCT_PATTERN.test(l) || ENUM_PATTERN.test(l)) {
+          rel = 0;
+          rel += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
+        }
+        continue;
+      }
+      if (rel === 1 && !/^\s*(?:private\s+)?(?:do|fn|func)\b/.test(l)) fieldRegion.add(j);
+      rel += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
+      if (rel <= 0) rel = -1;
+    }
+  }
+
   let i = 0;
 
   while (i < lines.length) {
@@ -413,6 +460,21 @@ export function scanSymbols(text: string): GraySymbol[] {
         declaration: sourceLines[i].trim(),
         type: extractType(line),
       });
+    } else if (!fieldRegion.has(i) && (m = BARE_VAR_PATTERN.exec(line))) {
+      const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
+      if (!NON_DECL_HEADS.has(names[0])) {
+        const type = extractTypeAfter(line.slice(line.indexOf(m[1]) + m[1].length));
+        for (const name of names) {
+          symbols.push({
+            name,
+            kind: 'variable',
+            line: i,
+            char: line.indexOf(name),
+            declaration: sourceLines[i].trim(),
+            type,
+          });
+        }
+      }
     }
 
     i++;
@@ -480,8 +542,9 @@ export function wildcardAt(text: string, position: Position): string | null {
 }
 
 /**
- * If the cursor is on an attribute name preceded by `#`, return the attribute
- * key including the hash (e.g. `#discard`). Returns null otherwise.
+ * If the cursor is on an attribute name, return the attribute key including the
+ * hash (e.g. `#discard`). Handles both the stacked form (`#discard`) and the
+ * single-line container form (`#[doc("x"), json]`). Returns null otherwise.
  */
 export function attributeAt(text: string, position: Position): string | null {
   const lines = text.split('\n');
@@ -494,9 +557,26 @@ export function attributeAt(text: string, position: Position): string | null {
   while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
   while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
   if (start === end) return null;
-  if (start === 0 || line[start - 1] !== '#') return null;
 
-  return '#' + line.slice(start, end);
+  // Stacked form: name immediately preceded by `#`.
+  if (line[start - 1] === '#') return '#' + line.slice(start, end);
+
+  // Container form: `#[a, b, c]` — the name sits inside a `#[ ... ]` group,
+  // reachable by scanning left past identifiers, commas, whitespace, and
+  // balanced `(...)` argument groups until a `[` preceded by `#`.
+  let i = start - 1;
+  let depth = 0;
+  while (i >= 0) {
+    const c = line[i];
+    if (c === ')') depth++;
+    else if (c === '(') { if (depth === 0) return null; depth--; }
+    else if (depth === 0) {
+      if (c === '[') return line[i - 1] === '#' ? '#' + line.slice(start, end) : null;
+      if (!/[A-Za-z0-9_,\s".]/.test(c)) return null;
+    }
+    i--;
+  }
+  return null;
 }
 
 /**

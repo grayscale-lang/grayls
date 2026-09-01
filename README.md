@@ -7,7 +7,7 @@ A Language Server Protocol (LSP) implementation for the [Grayscale programming l
 - **Diagnostics** — inline errors and warnings powered by `gray`
 - **Completion** — keywords, types, builtins, stdlib modules, and in-file symbols
 - **Hover docs** — documentation for all Grayscale keywords, types, and builtins
-- **Go to definition** — jump to `mut`, `const`, `func`, `struct`, and `enum` declarations within the current file
+- **Go to definition** — jump to variable, `const`, function (`do`/`fn`), `struct`, `enum`, and `alias` declarations within the current file
 
 ---
 
@@ -342,6 +342,8 @@ The scanner lives in `src/utils/symbols.ts`. Two functions handle multi-line bod
 - `scanStructFields(body: string[])` — parses field names and types
 
 If Grayscale adds a new enum or struct syntax (e.g. associated values, visibility modifiers), update the relevant regex patterns in those functions.
+
+Top-level declaration matching is driven by the `*_PATTERN` regexes at the top of the file. `mut` is optional in Grayscale, so keyword-less declarations (`count int = 0`) are matched by `BARE_VAR_PATTERN`; it requires a type token after the name to stay distinct from a plain assignment, and the `fieldRegion` pre-pass in `scanSymbols` keeps struct/enum field lines from being picked up as variables.
 
 ---
 
