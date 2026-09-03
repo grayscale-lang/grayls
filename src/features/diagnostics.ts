@@ -55,7 +55,9 @@ function runCheck(text: string): Diagnostic[] {
   }
 
   try {
-    const result = cp.spawnSync('gray', [tmpFile], {
+    // 'gray check' type-checks only. Bare 'gray <file>' would compile AND run
+    // the program, executing its I/O on every keystroke.
+    const result = cp.spawnSync('gray', ['check', tmpFile], {
       encoding: 'utf8',
       timeout: 10_000,
     });
