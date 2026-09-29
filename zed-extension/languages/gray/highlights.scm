@@ -9,6 +9,7 @@
 (string) @string
 (string_content) @string
 (raw_string) @string
+(char_literal) @string
 
 ; String interpolation - capture the delimiters explicitly
 (interpolation
@@ -62,6 +63,7 @@
   "!in"
   "range"
   "import"
+  "extern"
   "and"
   "using"
   "use"
@@ -96,26 +98,22 @@
 
 ; Types - builtin primitives (defined in grammar)
 [
-  "int"
   "i8"
   "i16"
   "i32"
   "i64"
   "i128"
   "i256"
-  "uint"
   "u8"
   "u16"
   "u32"
   "u64"
   "u128"
   "u256"
-  "float"
   "f32"
   "f64"
   "bool"
   "char"
-  "byte"
   "string"
   "map"
   "func"
@@ -123,7 +121,7 @@
 
 ; Builtin types that are identifiers (runtime/stdlib types)
 ((identifier) @type.builtin
-  (#match? @type.builtin "^(File|Database|Error|SourceLocation|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router|UUID)$"))
+  (#match? @type.builtin "^(Database|Error|ErrorCode|SourceLocation|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router|UUID|OpenFlag|Platform|Builder)$"))
 
 ; Type annotations - user defined types
 (type (identifier) @type.builtin)
@@ -183,6 +181,7 @@
   ","
   "."
   ":"
+  ";"
   "#"
 ] @punctuation.delimiter
 
@@ -223,7 +222,7 @@
 ; Built-in function calls
 (call_expression
   function: (identifier) @function.builtin
-  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|append|input|read_int|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
+  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|flush|input|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
 
 ; cast is a dedicated expression node - highlight keyword portion
 (cast_expression
@@ -232,6 +231,11 @@
 ; Function calls
 (call_expression
   function: (identifier) @function.call)
+
+; C interop calls: extern.puts(...)
+(call_expression
+  function: (extern_member
+    property: (identifier) @function.call))
 
 ; Function references ()name
 (func_ref

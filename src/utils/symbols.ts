@@ -3,7 +3,7 @@ import { Position, Location } from 'vscode-languageserver/node';
 export interface EnumMember {
   name: string;
   value: number | string;
-  /** Payload types for a tagged variant, e.g. ['float', 'float'] for Rect(float, float). */
+  /** Payload types for a tagged variant, e.g. ['f64', 'f64'] for Rect(f64, f64). */
   payload?: string[];
 }
 
@@ -31,16 +31,16 @@ export interface GraySymbol {
   enumMembers?: EnumMember[];
   structFields?: StructField[];
   params?: FuncParam[];
-  /** Return signature as written, e.g. `int` or `(quotient int, remainder int)`. */
+  /** Return signature as written, e.g. `i64` or `(quotient i64, remainder i64)`. */
   returns?: string;
 }
 
 // Single-line declaration patterns
-const MUT_PATTERN    = /^\s*mut\s+([A-Za-z][A-Za-z0-9_]*)/;
-const CONST_VAR_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+(?!struct\b|enum\b)/;
+const MUT_PATTERN    = /^\s*(?:private\s+)?mut\s+([A-Za-z][A-Za-z0-9_]*)/;
+const CONST_VAR_PATTERN = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+(?!struct\b|enum\b)/;
 const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|fn|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
-// Keyword-less variable declaration: `mut` is optional, so `count int = 0` and
-// `name, other int` are declarations. A type token is required after the name —
+// Keyword-less variable declaration: `mut` is optional, so `count i64 = 0` and
+// `name, other i64` are declarations. A type token is required after the name —
 // the fully-inferred form (`name = expr`) is indistinguishable from a plain
 // assignment and is left to the assignment path.
 const BARE_VAR_PATTERN = /^\s*(?:private\s+)?((?:[A-Za-z][A-Za-z0-9_]*\s*,\s*)*[A-Za-z][A-Za-z0-9_]*)\s+(\[|\^|map\b|[A-Za-z][A-Za-z0-9_]*)/;
@@ -50,10 +50,10 @@ const NON_DECL_HEADS = new Set([
   'elif', 'is', 'case', 'default', 'break', 'continue', 'loop', 'while',
   'as_long_as', 'import', 'use', 'using', 'ensure', 'defer', 'new', 'and',
   'const', 'mut', 'do', 'fn', 'func', 'alias', 'private', 'range', 'cast',
-  'in', 'not_in', 'println', 'print', 'eprintln', 'eprint',
+  'in', 'not_in', 'println', 'print', 'eprintln', 'eprint', 'extern',
 ]);
-const STRUCT_PATTERN = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
-const ENUM_PATTERN   = /^\s*const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
+const STRUCT_PATTERN = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
+const ENUM_PATTERN   = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
 const ALIAS_PATTERN  = /^\s*(?:private\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
 // Tagged-enum destructuring: `is Shape.Circle(radius)` or `is .Circle(radius)`
 const IS_PATTERN     = /^\s*(?:is|case)\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/;
@@ -61,9 +61,9 @@ const IS_PATTERN     = /^\s*(?:is|case)\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Z
 /**
  * Extract the declared Grayscale type from a `mut` or `const` line.
  *
- * Handles:  mut x int = 42
- *           mut arr [byte] = {}
- *           mut m map[string:int] = {:}
+ * Handles:  mut x i64 = 42
+ *           mut arr [u8] = {}
+ *           mut m map[string:i64] = {:}
  *           mut p ^Foo = addr(x)
  *           mut foo = new(Foo)      ← no annotation, returns undefined
  */
@@ -90,7 +90,7 @@ function extractType(line: string): string | undefined {
 
 /**
  * Extract the type token from the text immediately following a keyword-less
- * declaration's name list (e.g. ` int = 0`, ` [byte]`, ` map[string:int]`).
+ * declaration's name list (e.g. ` i64 = 0`, ` [u8]`, ` map[string:i64]`).
  */
 function extractTypeAfter(afterNames: string): string | undefined {
   const s = afterNames.trim();
@@ -131,8 +131,8 @@ function splitTopLevel(text: string): string[] {
 /**
  * Parse a function parameter list into names, types, and defaults.
  *
- * Handles grouped names sharing a type (`a, b int`), defaults
- * (`port int = 8080`), reference params (`&buf [byte]`), wildcard types
+ * Handles grouped names sharing a type (`a, b i64`), defaults
+ * (`port i64 = 8080`), reference params (`&buf [u8]`), wildcard types
  * (`x ?`), and type parameters (`T <?>`).
  */
 function parseParams(list: string): FuncParam[] {
@@ -153,7 +153,7 @@ function parseParams(list: string): FuncParam[] {
     const bare = decl.replace(/^&\s*/, '').trim();
     const m = bare.match(/^([A-Za-z][A-Za-z0-9_]*)\s+(.+)$/);
     if (!m) {
-      // A name with no type yet: part of a group like `a, b int`.
+      // A name with no type yet: part of a group like `a, b i64`.
       if (/^[A-Za-z][A-Za-z0-9_]*$/.test(bare)) pending.push(bare);
       continue;
     }
@@ -196,6 +196,70 @@ function parseSignature(line: string): { params: FuncParam[]; returns?: string }
 }
 
 /**
+ * Spans of `text` separated by `;`. A `;` inside a string, character literal,
+ * parentheses, or brackets does not separate; neither does one inside braces
+ * when `splitInsideBraces` is false. Scanning stops at a `//` comment.
+ */
+function statementSpans(text: string, splitInsideBraces: boolean): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let start = 0;
+  let quote: string | null = null;
+  let grouping = 0;
+  let braces = 0;
+  let end = text.length;
+
+  for (let k = 0; k < text.length; k++) {
+    const c = text[k];
+    if (quote) {
+      if (c === '\\') k++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '/' && text[k + 1] === '/') { end = k; break; }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === '(' || c === '[') grouping++;
+    else if (c === ')' || c === ']') grouping--;
+    else if (c === '{') braces++;
+    else if (c === '}') braces--;
+    else if (c === ';' && grouping <= 0 && (splitInsideBraces || braces <= 0)) {
+      spans.push({ start, end: k });
+      start = k + 1;
+    }
+  }
+  spans.push({ start, end });
+  return spans;
+}
+
+/** Split body lines on `;` so `x i64; y i64` yields two entries. */
+function splitOnSemicolons(lines: string[]): string[] {
+  return lines.flatMap(line =>
+    statementSpans(line, false).map(span => line.slice(span.start, span.end)),
+  );
+}
+
+/**
+ * The statements on one physical line, each padded with leading spaces so its
+ * columns match the original line. Ordinary lines come back unchanged. A
+ * struct or enum declared entirely on one line stays whole, and the body of a
+ * one-line function is split from its signature.
+ */
+function lineSegments(line: string): string[] {
+  const opens = (line.match(/\{/g) || []).length;
+  const closes = (line.match(/\}/g) || []).length;
+  if ((STRUCT_PATTERN.test(line) || ENUM_PATTERN.test(line)) && opens === closes) return [line];
+
+  const segments = statementSpans(line, true).map(span => ' '.repeat(span.start) + line.slice(span.start, span.end));
+  if (!FUNC_PATTERN.test(segments[0])) return segments;
+
+  const signatureClose = segments[0].indexOf(')');
+  const bodyOpen = signatureClose === -1 ? -1 : segments[0].indexOf('{', signatureClose);
+  if (bodyOpen === -1 || !segments[0].slice(bodyOpen + 1).trim()) return segments;
+
+  const body = ' '.repeat(bodyOpen + 1) + segments[0].slice(bodyOpen + 1);
+  return [segments[0].slice(0, bodyOpen + 1), body, ...segments.slice(1)];
+}
+
+/**
  * Scan a multi-line block body (between the opening `{` and matching `}`)
  * starting at lineIndex + 1 in lines[]. Returns { members, endLine }.
  */
@@ -203,6 +267,20 @@ function scanBlock(
   lines: string[],
   startLine: number,
 ): { content: string[]; endLine: number } {
+  // A body that opens and closes on the declaration line itself:
+  // `const Point struct { x i64; y i64 }`.
+  const declaration = lines[startLine];
+  const open = declaration.indexOf('{');
+  if (open !== -1) {
+    let nesting = 0;
+    for (let k = open; k < declaration.length; k++) {
+      if (declaration[k] === '{') nesting++;
+      else if (declaration[k] === '}' && --nesting === 0) {
+        return { content: [declaration.slice(open + 1, k)], endLine: startLine };
+      }
+    }
+  }
+
   const content: string[] = [];
   let depth = 1;
   let i = startLine + 1;
@@ -220,7 +298,7 @@ function scanBlock(
 function scanEnumMembers(body: string[]): EnumMember[] {
   const members: EnumMember[] = [];
   let autoInt = 0;
-  for (const line of body) {
+  for (const line of splitOnSemicolons(body)) {
     const trimmed = line.trim().replace(/,\s*$/, '').replace(/\/\/.*$/, '').trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
 
@@ -264,7 +342,7 @@ function scanStructFields(body: string[]): StructField[] {
   // Depth relative to the struct body, so nested struct-function bodies are skipped.
   let depth = 0;
 
-  for (const line of body) {
+  for (const line of splitOnSemicolons(body)) {
     const trimmed = line.trim().replace(/\/\/.*$/, '').trim();
     const opens  = (line.match(/\{/g) || []).length;
     const closes = (line.match(/\}/g) || []).length;
@@ -364,8 +442,8 @@ export function scanSymbols(text: string): GraySymbol[] {
       const l = lines[j];
       if (rel < 0) {
         if (STRUCT_PATTERN.test(l) || ENUM_PATTERN.test(l)) {
-          rel = 0;
-          rel += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
+          rel = (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
+          if (rel <= 0) rel = -1;
         }
         continue;
       }
@@ -378,101 +456,102 @@ export function scanSymbols(text: string): GraySymbol[] {
   let i = 0;
 
   while (i < lines.length) {
-    const line = lines[i];
-    let m: RegExpMatchArray | null;
+    for (const line of lineSegments(lines[i])) {
+      let m: RegExpMatchArray | null;
 
-    if ((m = STRUCT_PATTERN.exec(line))) {
-      const name = m[1];
-      const { content } = scanBlock(lines, i);
-      const fields = scanStructFields(content);
-      symbols.push({
-        name,
-        kind: 'struct',
-        line: i,
-        char: line.indexOf(name),
-        declaration: sourceLines[i].trim(),
-        structFields: fields,
-      });
-    } else if ((m = ENUM_PATTERN.exec(line))) {
-      const name = m[1];
-      const { content } = scanBlock(lines, i);
-      const members = scanEnumMembers(content);
-      symbols.push({
-        name,
-        kind: 'enum',
-        line: i,
-        char: line.indexOf(name),
-        declaration: sourceLines[i].trim(),
-        enumMembers: members,
-      });
-    } else if ((m = IS_PATTERN.exec(line))) {
-      const [, enumName, variant, rawBindings] = m;
-      let searchFrom = line.indexOf('(', m.index);
-      rawBindings.split(',').forEach((raw, index) => {
-        const name = raw.trim();
-        searchFrom = line.indexOf(name, searchFrom);
-        if (!name || name === '_' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return;
-        const sym: GraySymbol = {
+      if ((m = STRUCT_PATTERN.exec(line))) {
+        const name = m[1];
+        const { content } = scanBlock(lines, i);
+        const fields = scanStructFields(content);
+        symbols.push({
           name,
-          kind: 'variable',
+          kind: 'struct',
           line: i,
-          char: searchFrom,
+          char: line.indexOf(name),
           declaration: sourceLines[i].trim(),
-        };
-        symbols.push(sym);
-        bindings.push({ sym, enumName, variant, index });
-      });
-    } else if ((m = ALIAS_PATTERN.exec(line))) {
-      symbols.push({
-        name: m[1],
-        kind: 'alias',
-        line: i,
-        char: line.indexOf(m[1]),
-        declaration: sourceLines[i].trim(),
-        type: m[2].replace(/\/\/.*$/, '').trim(),
-      });
-    } else if ((m = FUNC_PATTERN.exec(line))) {
-      const sig = parseSignature(line);
-      symbols.push({
-        name: m[1],
-        kind: 'function',
-        line: i,
-        char: line.indexOf(m[1]),
-        declaration: sourceLines[i].trim(),
-        params: sig.params,
-        returns: sig.returns,
-      });
-    } else if ((m = MUT_PATTERN.exec(line))) {
-      symbols.push({
-        name: m[1],
-        kind: 'variable',
-        line: i,
-        char: line.indexOf(m[1]),
-        declaration: sourceLines[i].trim(),
-        type: extractType(line),
-      });
-    } else if ((m = CONST_VAR_PATTERN.exec(line))) {
-      symbols.push({
-        name: m[1],
-        kind: 'constant',
-        line: i,
-        char: line.indexOf(m[1]),
-        declaration: sourceLines[i].trim(),
-        type: extractType(line),
-      });
-    } else if (!fieldRegion.has(i) && (m = BARE_VAR_PATTERN.exec(line))) {
-      const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
-      if (!NON_DECL_HEADS.has(names[0])) {
-        const type = extractTypeAfter(line.slice(line.indexOf(m[1]) + m[1].length));
-        for (const name of names) {
-          symbols.push({
+          structFields: fields,
+        });
+      } else if ((m = ENUM_PATTERN.exec(line))) {
+        const name = m[1];
+        const { content } = scanBlock(lines, i);
+        const members = scanEnumMembers(content);
+        symbols.push({
+          name,
+          kind: 'enum',
+          line: i,
+          char: line.indexOf(name),
+          declaration: sourceLines[i].trim(),
+          enumMembers: members,
+        });
+      } else if ((m = IS_PATTERN.exec(line))) {
+        const [, enumName, variant, rawBindings] = m;
+        let searchFrom = line.indexOf('(', m.index);
+        rawBindings.split(',').forEach((raw, index) => {
+          const name = raw.trim();
+          searchFrom = line.indexOf(name, searchFrom);
+          if (!name || name === '_' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return;
+          const sym: GraySymbol = {
             name,
             kind: 'variable',
             line: i,
-            char: line.indexOf(name),
+            char: searchFrom,
             declaration: sourceLines[i].trim(),
-            type,
-          });
+          };
+          symbols.push(sym);
+          bindings.push({ sym, enumName, variant, index });
+        });
+      } else if ((m = ALIAS_PATTERN.exec(line))) {
+        symbols.push({
+          name: m[1],
+          kind: 'alias',
+          line: i,
+          char: line.indexOf(m[1]),
+          declaration: sourceLines[i].trim(),
+          type: m[2].replace(/\/\/.*$/, '').trim(),
+        });
+      } else if ((m = FUNC_PATTERN.exec(line))) {
+        const sig = parseSignature(line);
+        symbols.push({
+          name: m[1],
+          kind: 'function',
+          line: i,
+          char: line.indexOf(m[1]),
+          declaration: sourceLines[i].trim(),
+          params: sig.params,
+          returns: sig.returns,
+        });
+      } else if ((m = MUT_PATTERN.exec(line))) {
+        symbols.push({
+          name: m[1],
+          kind: 'variable',
+          line: i,
+          char: line.indexOf(m[1]),
+          declaration: sourceLines[i].trim(),
+          type: extractType(line),
+        });
+      } else if ((m = CONST_VAR_PATTERN.exec(line))) {
+        symbols.push({
+          name: m[1],
+          kind: 'constant',
+          line: i,
+          char: line.indexOf(m[1]),
+          declaration: sourceLines[i].trim(),
+          type: extractType(line),
+        });
+      } else if (!fieldRegion.has(i) && (m = BARE_VAR_PATTERN.exec(line))) {
+        const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
+        if (!NON_DECL_HEADS.has(names[0])) {
+          const type = extractTypeAfter(line.slice(line.indexOf(m[1]) + m[1].length));
+          for (const name of names) {
+            symbols.push({
+              name,
+              kind: 'variable',
+              line: i,
+              char: line.indexOf(name),
+              declaration: sourceLines[i].trim(),
+              type,
+            });
+          }
         }
       }
     }
@@ -637,11 +716,11 @@ export function moduleWordAt(
  * Returns null when the cursor is on a plain identifier outside brackets.
  *
  * Examples:
- *   cursor on `byte`  in `mut x [byte] = {}`       → "[byte]"
- *   cursor on `int`   in `mut m [[int]] = {}`       → "[[int]]"
- *   cursor on `int`   in `const a [int, 5] = {}`    → "[int, 5]"
- *   cursor on `string` in `mut m map[string:int]`   → "map[string:int]"
- *   cursor on `int`   in `mut m map[string:int]`    → "map[string:int]"
+ *   cursor on `u8`    in `mut x [u8] = {}`         → "[u8]"
+ *   cursor on `i64`   in `mut m [[i64]] = {}`       → "[[i64]]"
+ *   cursor on `i64`   in `const a [i64, 5] = {}`    → "[i64, 5]"
+ *   cursor on `string` in `mut m map[string:i64]`   → "map[string:i64]"
+ *   cursor on `i64`   in `mut m map[string:i64]`    → "map[string:i64]"
  */
 export function compositeTypeAt(text: string, position: Position): string | null {
   const lines = text.split('\n');
@@ -667,9 +746,9 @@ export function compositeTypeAt(text: string, position: Position): string | null
     return null;
   }
 
-  // Case 1: cursor is immediately to the right of '[', e.g. [byte], [[int]], [int, 5]
+  // Case 1: cursor is immediately to the right of '[', e.g. [u8], [[i64]], [i64, 5]
   if (wStart > 0 && line[wStart - 1] === '[') {
-    // Find the outermost '[' (handles [[int]] where wStart-1 is inner '[')
+    // Find the outermost '[' (handles [[i64]] where wStart-1 is inner '[')
     let outerLeft = wStart - 1;
     while (outerLeft > 0 && line[outerLeft - 1] === '[') outerLeft--;
 
@@ -682,7 +761,7 @@ export function compositeTypeAt(text: string, position: Position): string | null
     if (bracket) return line.slice(typeStart, outerLeft) + bracket;
   }
 
-  // Case 2: cursor is on the value side of map[K:V] (e.g. on 'int' in map[string:int])
+  // Case 2: cursor is on the value side of map[K:V] (e.g. on 'i64' in map[string:i64])
   const prefix = line.slice(0, wStart);
   const mapIdx = prefix.lastIndexOf('map[');
   if (mapIdx !== -1) {

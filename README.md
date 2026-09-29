@@ -14,13 +14,17 @@ A Language Server Protocol (LSP) implementation for the [Grayscale programming l
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) v18 or later
-- `gray` on your `$PATH` (required for diagnostics — all other features work without it)
+- `gray` on your `$PATH` (required for diagnostics — all other features work without it), kept up to date with `gray update`
+
+grayls always runs whichever `gray` comes first on your `$PATH`, typically the installed release. It does not look for a `gray` built from a local checkout of the Grayscale repo. If you build the compiler yourself, put that build first on your `$PATH` (for example `export PATH="/path/to/Grayscale:$PATH"`, where `/path/to/Grayscale` contains the built `gray`), then restart your editor.
+
+An out-of-date `gray` reports newer syntax as errors. For example, a release from before `;` separators were added flags every `;` as an error.
 
 Verify both:
 
 ```sh
 node --version
-gray
+gray 
 ```
 
 ---
@@ -109,145 +113,9 @@ To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search 
 
 ---
 
-### Neovim
+## Try It Out
 
-#### Prerequisites
-
-Before configuring Neovim, build the server:
-
-```sh
-git clone https://github.com/grayscale-lang/grayls
-cd grayls
-npm install
-npm run build
-```
-
-This produces `out/server.js`, which is the path you point Neovim at below.
-Note the absolute path — the rest of this section refers to it as
-`/path/to/grayls/out/server.js`.
-
-You also need Node.js v18+, and `gray` on your `$PATH` for diagnostics. Every
-other feature works without it.
-
-#### Step 1: Register the `gray` filetype
-
-Neovim does not know about `.gray` files out of the box. Without this, the
-server never attaches:
-
-```lua
-vim.filetype.add({ extension = { gray = 'gray' } })
-```
-
-#### Step 2: Configure the server
-
-**Neovim 0.11+** (built-in `vim.lsp.config`, no plugin required):
-
-```lua
-vim.lsp.config.grayls = {
-  cmd = { 'node', '/path/to/grayls/out/server.js', '--stdio' },
-  filetypes = { 'gray' },
-  root_markers = { '.git' },
-}
-
-vim.lsp.enable('grayls')
-```
-
-**Older Neovim, via `nvim-lspconfig`:**
-
-```lua
-{ "neovim/nvim-lspconfig" }
-```
-
-```lua
-local lspconfig = require('lspconfig')
-local configs = require('lspconfig.configs')
-
-if not configs.grayls then
-  configs.grayls = {
-    default_config = {
-      cmd = { 'node', '/path/to/grayls/out/server.js', '--stdio' },
-      filetypes = { 'gray' },
-      root_dir = lspconfig.util.root_pattern('.git', '*.gray'),
-      single_file_support = true,
-    },
-  }
-end
-
-lspconfig.grayls.setup({})
-```
-
-Open a `.gray` file and the server attaches automatically.
-
-#### Step 3: Syntax highlighting (optional)
-
-The language server provides diagnostics, completion, hover, and
-go-to-definition — but not syntax highlighting. For that, use the Tree-sitter
-grammar at [`grayscale-lang/tree-sitter-gray`](https://github.com/grayscale-lang/tree-sitter-gray).
-
-With `nvim-treesitter` installed, register the parser:
-
-```lua
-local parsers = require('nvim-treesitter.parsers').get_parser_configs()
-
-parsers.gray = {
-  install_info = {
-    url = 'https://github.com/grayscale-lang/tree-sitter-gray',
-    files = { 'src/parser.c' },
-    branch = 'main',
-  },
-  filetype = 'gray',
-}
-```
-
-Then run `:TSInstall gray`.
-
-`nvim-treesitter` does not install queries for third-party parsers, so the
-highlight queries have to go on your runtimepath yourself. Copy them from the
-grammar repository:
-
-```sh
-git clone https://github.com/grayscale-lang/tree-sitter-gray
-mkdir -p ~/.config/nvim/queries/gray
-cp tree-sitter-gray/queries/highlights.scm ~/.config/nvim/queries/gray/
-```
-
-#### Troubleshooting
-
-**Check whether the server attached.** With a `.gray` file open:
-
-```vim
-:checkhealth vim.lsp
-```
-
-On older versions, use `:LspInfo`. If no client is listed, the filetype is
-usually the cause — confirm with `:set filetype?`, which must report `gray`.
-
-**Check the server actually starts.** Run it by hand; it should sit and wait
-for input rather than exiting or erroring:
-
-```sh
-node /path/to/grayls/out/server.js --stdio
-```
-
-If this fails, `out/server.js` is missing or stale — re-run `npm run build`.
-
-**Read the log** for startup errors and crashes:
-
-```vim
-:LspLog
-```
-
-**No diagnostics, but hover and completion work.** Diagnostics shell out to
-`gray`, so it must be on the `$PATH` Neovim inherits. Verify from inside
-Neovim, not just your shell:
-
-```vim
-:echo exepath('gray')
-```
-
-An empty result means Neovim cannot see it.
-
-**After changing server code:** run `npm run build`, then `:LspRestart`.
+Once your editor is set up, open [`main.gray`](main.gray) in the root of this repo. It is a single file that exercises everything grayls and the tree-sitter grammar support: syntax highlighting for every kind of token, hover docs for keywords, builtins, standard library functions and your own symbols, completion, go to definition, and diagnostics. The comments in the file point out what to try.
 
 ---
 
@@ -256,19 +124,21 @@ An empty result means Neovim cannot see it.
 On every file open, change, and save, grayls writes the buffer to a temp file and runs:
 
 ```sh
-gray /tmp/gray-lsp-XXXX.gray
+gray check /tmp/gray-lsp-XXXX.gray
 ```
 
 The output is parsed for error and warning lines of the form:
 
 ```
-error[E3018]: type mismatch in 'when'; comparing 'int' with 'string'
+error[E3018]: type mismatch in 'when'; comparing 'i64' with 'string'
   --> myfile.gray:42:10
 ```
 
 Each becomes an inline diagnostic at the correct line and column, debounced 300 ms.
 
 If `gray` is not on your `$PATH`, diagnostics are silently skipped — completion, hover, and go to definition still work.
+
+The `gray` that runs is the first one on your `$PATH`, so diagnostics match that compiler's version. See [Prerequisites](#prerequisites).
 
 ---
 
@@ -292,98 +162,3 @@ grayls/
   package.json
   tsconfig.json
 ```
-
----
-
-## Developer Guide
-
-This section covers how to extend grayls when the Grayscale language itself changes, or when you want to add new LSP features.
-
-### Adding a new keyword, type, or builtin
-
-All static language data lives in `src/utils/gray-data.ts`. It has three arrays and two doc maps:
-
-| Export | What to update |
-|--------|---------------|
-| `KEYWORDS` | Add reserved words that appear in control flow or declarations |
-| `TYPES` | Add new primitive or sized types |
-| `BUILTINS` | Add new builtin functions |
-| `STDLIB_MODULES` | Add new `@module` names |
-| `DOCS` | Add hover documentation for any of the above |
-| `MODULE_FUNCTION_DOCS` | Add hover docs for `module.function` calls |
-
-**Example — adding a new builtin `format`:**
-
-1. Add `'format'` to the `BUILTINS` array
-2. Add an entry to `DOCS`:
-   ```ts
-   'format': '**`format(template string, ...args) -> string`** — Format a string with substitutions.',
-   ```
-
-Rebuild (`npm run build`) and reopen a `.gray` file — the new builtin appears in completion and hover immediately.
-
----
-
-### Adding hover docs for a stdlib function
-
-Add an entry to `MODULE_FUNCTION_DOCS` in `gray-data.ts`. The key is `"module.function"`:
-
-```ts
-'arrays.my_new_fn': '**`arrays.my_new_fn(arr [T], n int) -> T`** — Description here.',
-```
-
----
-
-### Updating enum or struct scanning
-
-The scanner lives in `src/utils/symbols.ts`. Two functions handle multi-line bodies:
-
-- `scanEnumMembers(body: string[])` — parses variant names and their values (integer or string)
-- `scanStructFields(body: string[])` — parses field names and types
-
-If Grayscale adds a new enum or struct syntax (e.g. associated values, visibility modifiers), update the relevant regex patterns in those functions.
-
-Top-level declaration matching is driven by the `*_PATTERN` regexes at the top of the file. `mut` is optional in Grayscale, so keyword-less declarations (`count int = 0`) are matched by `BARE_VAR_PATTERN`; it requires a type token after the name to stay distinct from a plain assignment, and the `fieldRegion` pre-pass in `scanSymbols` keeps struct/enum field lines from being picked up as variables.
-
----
-
-### Updating diagnostics parsing
-
-The diagnostic parser is in `src/features/diagnostics.ts`. It uses one regex against `gray` output:
-
-```ts
-const DIAG_PATTERN =
-  /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+[^:]+:(\d+):(\d+)/gm;
-```
-
-If `gray`'s error output format changes (e.g. new severity levels, different arrow syntax), update this regex. The capture groups map to: `severity`, `code`, `message`, `line`, `column`.
-
----
-
-### Adding a new LSP feature
-
-1. Create `src/features/myfeature.ts` and export a `provideX` function that takes `(params, documents)` and returns the appropriate LSP type.
-
-2. Register it in `src/server.ts`:
-   ```ts
-   import { provideMyFeature } from './features/myfeature';
-
-   // Inside onInitialize, add the capability:
-   myFeatureProvider: true,
-
-   // Then register the handler:
-   connection.onMyFeature((params) => provideMyFeature(params, documents));
-   ```
-
-The [vscode-languageserver](https://github.com/microsoft/vscode-languageserver-node) package provides types and handler names for all standard LSP features (semantic tokens, code actions, rename, references, etc.).
-
----
-
-### Build workflow
-
-```sh
-npm run build       # compile TypeScript + bundle with esbuild
-npm run compile     # TypeScript only (no bundle) — fast type-check
-```
-
-Always rebuild before testing changes. The server binary at `out/server.js` is what all editors load.

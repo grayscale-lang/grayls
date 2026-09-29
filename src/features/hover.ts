@@ -161,12 +161,12 @@ export function provideHover(
         contents: { kind: MarkupKind.Markdown, value: MODULE_FUNCTION_DOCS[key] },
       };
     }
-    // C interop: any `c.` member resolves to the imported C header.
-    if (modWord.module === 'c') {
+    // C interop: any `extern.` member resolves to the imported C header.
+    if (modWord.module === 'extern') {
       return {
         contents: {
           kind: MarkupKind.Markdown,
-          value: `**\`c.${modWord.fn}\`** \u2014 C function or constant, resolved by the C compiler from the imported headers.\n\nReturn types are inferred by the C compiler. Annotate the variable when Grayscale needs to know the type:\n\n\`\`\`gray\nmut x float = c.sqrt(2.0)\n\`\`\``,
+          value: `**\`extern.${modWord.fn}\`** \u2014 C function or constant, resolved by the C compiler from the imported headers.\n\nA C call result has no Grayscale type of its own. Assign it to a type-annotated variable:\n\n\`\`\`gray\nmut x f64 = extern.sqrt(2.0)\n\`\`\``,
         },
       };
     }

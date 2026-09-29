@@ -1,0 +1,486 @@
+// ============================================================================
+// main.gray - a tour of everything grayls and the Grayscale tree-sitter
+// grammar highlight. Open this file in your editor to try things out:
+//
+//   - syntax highlighting: keywords, types, literals, attributes, operators
+//   - hover: keywords, builtins, stdlib functions, types, your own symbols
+//   - completion: start typing any keyword, builtin, or `strings.`-style call
+//   - go to definition: jump from a use to its declaration
+//   - diagnostics: uncomment a "try" line to see the compiler's error
+//
+// A file may use only one spelling of each keyword pair (do/fn, while/
+// as_long_as, when-is/switch-case, or-otherwise/elif-else, ensure/defer,
+// not_in/!in). This file uses the canonical spellings. The alternates highlight
+// identically.
+// ============================================================================
+
+/* Block comments
+   span several lines. */
+
+import @strings, @math, @arrays, @time, @random, @json
+import and use @fmt
+extern import "stdio.h"
+
+// ---------------------------------------------------------------------------
+// Literals
+// ---------------------------------------------------------------------------
+
+const APP_NAME string = "grayls playground"
+const MAX_RETRIES i64 = 5
+const RATIO f64 = 0.75
+const BIG i64 = 1_000_000
+const HEX u32 = 0xFF
+const OCTAL u32 = 0o755
+const BINARY u8 = 0b1010_1010
+const AVOGADRO f64 = 6.022e23
+const TINY f64 = 2.5E-4
+const LETTER char = 'A'
+const NEWLINE char = '\n'
+const SMILEY char = '\u{1F600}'
+const RAW string = `C:\Users\raw\path, no ${escapes} here`
+const ESCAPED string = "tab\there, quote \" and a literal \${dollar}"
+const ENABLED bool = true
+const NOTHING ^i64 = nil
+
+// ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+alias Meters = f64
+alias Names = [string]
+alias Lookup = [string:i64]
+private alias Id = i64
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+const Direction enum {
+    NORTH
+    EAST
+    SOUTH
+    WEST
+}
+
+const Level enum {
+    LOW = 1
+    MEDIUM = 5
+    HIGH = 10
+}
+
+const Mode enum {
+    FAST = "fast"
+    SLOW = "slow"
+}
+
+#flags
+const Permission enum {
+    READ
+    WRITE
+    EXECUTE
+}
+
+// Tagged enum: variants carry payloads.
+const Shape enum {
+    Circle(f64)
+    Rect(f64, f64)
+    Point
+}
+
+#error_code
+const NetError enum {
+    TIMEOUT
+    REFUSED
+}
+
+// Several members on one line, separated by semicolons.
+const Color enum { RED; GREEN; BLUE }
+
+// ---------------------------------------------------------------------------
+// Structs
+// ---------------------------------------------------------------------------
+
+#doc("A point in 2D space")
+const Point struct {
+    x, y f64
+}
+
+const Config struct {
+    host string = "localhost"
+    port u16 = 8080
+    debug bool
+    tags [string]
+    limits [i64, 3]
+    lookup [string:i64]
+    handler func(i64) -> i64
+    next ^Config
+}
+
+#json
+const User struct {
+    name string `json:"Name"`
+    age  i64    `json:"Age"`
+    active bool `json:"Active"`
+}
+
+private const Secret struct {
+    token string
+}
+
+// Fields on one line, separated by semicolons.
+const Pair struct { first i64; second i64 }
+
+// Functions can live inside a struct.
+const Counter struct {
+    count i64
+
+    do increment(&self Counter) {
+        self.count++
+    }
+
+    do value(self Counter) -> i64 {
+        return self.count
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Functions
+// ---------------------------------------------------------------------------
+
+#doc("Adds two numbers")
+do add(a i64, b i64) -> i64 {
+    return a + b
+}
+
+// Default parameters, grouped parameters, and named arguments at the call site.
+do connect(host string, port u16 = 8080, secure bool = false) -> string {
+    return "${host}:${port} secure=${secure}"
+}
+
+do area(width, height f64) -> f64 {
+    return width * height
+}
+
+// Multiple return values, with named results.
+do divide(a i64, b i64) -> (quotient i64, remainder i64) {
+    mut quotient i64 = a / b; mut remainder i64 = a % b
+    return quotient, remainder
+}
+
+// Fallible function: the last return value is an Error.
+do parse_port(text string) -> (u16, Error) {
+    if len(text) == 0 {
+        return 0, error(.NotFound, "empty port")
+    }
+    return 8080, nil
+}
+
+// `&` marks a mutable parameter.
+do bump(&counter i64, by i64 = 1) {
+    counter += by
+}
+
+// Wildcard types and type parameters.
+do identity(value ?) -> ? {
+    return value
+}
+
+do make(T <?>) -> ^? {
+    return new(T)
+}
+
+// Function references and function-typed parameters.
+do apply(value i64, transform func(i64) -> i64) -> i64 {
+    return transform(value)
+}
+
+do double_it(n i64) -> i64 {
+    return n * 2
+}
+
+#discard
+do log_line(message string) -> i64 {
+    println(message)
+    return len(message)
+}
+
+#deprecated("use add() instead")
+do old_add(a i64, b i64) -> i64 {
+    return a + b
+}
+
+#[doc("Runs as a test"), test]
+do adds_two_numbers() {
+    assert(add(2, 2) == 4, "2 + 2 should be 4")
+}
+
+private do helper() -> i64 {
+    return 42
+}
+
+// Uses or_return to propagate errors.
+do load_port(text string) -> (u16, Error) {
+    mut port = parse_port(text) or_return
+    return port, nil
+}
+
+// Calls into C with the extern prefix.
+do say_hello_from_c() {
+    extern.puts("hello from C")
+}
+
+// ---------------------------------------------------------------------------
+// Statements and control flow
+// ---------------------------------------------------------------------------
+
+do describe(level Level) -> string {
+    when level {
+        is Level.LOW { return "low" }
+        is Level.MEDIUM, Level.HIGH { return "medium or high" }
+        default { return "unknown" }
+    }
+}
+
+do direction_name(dir Direction) -> string {
+    #strict
+    when dir {
+        is .NORTH { return "north" }
+        is .EAST { return "east" }
+        is .SOUTH { return "south" }
+        is .WEST { return "west" }
+    }
+}
+
+do shape_area(shape Shape) -> f64 {
+    when shape {
+        is Shape.Circle(radius) { return 3.14159 * radius * radius }
+        is Shape.Rect(width, height) { return width * height }
+        is Shape.Point { return 0.0 }
+        default { return 0.0 }
+    }
+}
+
+do control_flow_tour() {
+    mut n i64 = 7
+
+    if n > 10 {
+        println("big")
+    } or n > 5 {
+        println("medium")
+    } otherwise {
+        println("small")
+    }
+
+    for i in range(0, 3) {
+        println("i = ${i}")
+    }
+
+    for i in range(0, 10, 2) {
+        println("even = ${i}")
+    }
+
+    mut countdown i64 = 3
+    for countdown > 0 {
+        countdown--
+    }
+
+    for_each name in {"ada", "grace", "linus"} {
+        println(strings.to_upper(name))
+    }
+
+    for_each index, name in {"one", "two"} {
+        println("${index}: ${name}")
+    }
+
+    as_long_as n > 0 {
+        n -= 3
+        if n < 3 { break }
+    }
+
+    loop {
+        n++
+        if n < 100 { continue }
+        break
+    }
+}
+
+do ensure_tour() {
+    ensure println("cleanup runs when this function exits")
+    println("working")
+}
+
+// ---------------------------------------------------------------------------
+// Expressions and operators
+// ---------------------------------------------------------------------------
+
+do operator_tour() {
+    mut a i64 = 10
+    mut b i64 = 3
+
+    // Arithmetic and compound assignment
+    mut total i64 = a + b * 2 - a / b + a % b
+    total += 1
+    total -= 1
+    total *= 2
+    total /= 2
+    total %= 100
+    a++
+    b--
+
+    // Comparison and logic
+    mut ok bool = a >= b && a != 0 || !ENABLED
+    mut same bool = a == b
+    mut ordered bool = a < b || a <= b || a > b
+
+    // Bitwise operators use keywords
+    mut bits u32 = 0xF0 bit_and 0x3C bit_or 0x01 bit_xor 0x02
+    mut inverted u32 = bit_not bits
+    mut left u32 = 1 bit_shift_left 4
+    mut right u32 = 256 bit_shift_right 2
+
+    // Membership
+    mut numbers [i64] = {1, 2, 3}
+    mut found bool = 2 in numbers
+    mut missing bool = 9 not_in numbers
+
+    // Casts
+    mut widened f64 = cast(a, f64)
+    mut narrowed u8 = cast(total, u8)
+
+    // Interpolation
+    println("a=${a} b=${b} sum=${a + b}")
+    println("${total} ${ok} ${same} ${ordered} ${bits} ${inverted} ${left} ${right}")
+    println("${found} ${missing} ${widened} ${narrowed}")
+}
+
+do collections_tour() {
+    mut numbers [i64] = {1, 2, 3}
+    mut names [string] = {"ada", "grace"}
+    mut grid [[i64]] = {{1, 2}, {3, 4}}
+    const fixed [i64, 3] = {7, 8, 9}
+    mut ages [string:i64] = {"ada": 36, "grace": 45}
+    mut empty [string:i64] = {:}
+
+    arrays.append(numbers, 4)
+    arrays.sort_desc(numbers)
+    ages["linus"] = 54
+
+    println("${len(numbers)} ${names[0]} ${grid[1][0]} ${fixed[2]} ${ages["ada"]} ${len(empty)}")
+    println(arrays.contains(numbers, 3))
+}
+
+do pointer_tour() {
+    mut value i64 = 10
+    mut pointer ^i64 = addr(value)
+    pointer^ = 20
+    pointer^++
+
+    mut point ^Point = new(Point)
+    point^.x = 1.5
+    point^.y = 2.5
+
+    mut tuple = make(Point)
+    println("${value} ${point^.x} ${tuple^.y}")
+}
+
+do struct_tour() {
+    mut origin = Point{x: 0.0, y: 0.0}
+    mut config = Config{host: "example.com", port: 443, debug: true}
+    mut user = User{name: "Ada", age: 36, active: true}
+    mut counter = Counter{count: 0}
+    counter.increment()
+
+    println("${origin.x} ${config.host} ${user.name} ${counter.value()}")
+    println(fields(user))
+    println(json.stringify(user))
+    println(type_of(config))
+    println(size_of(Point))
+}
+
+do call_tour() {
+    println(connect("example.com"))
+    println(connect(host: "example.com", port: 443, secure: true))
+    println(area(3.0, 4.0))
+
+    mut quotient, remainder = divide(17, 5)
+    mut counter i64 = 0
+    bump(counter)
+    bump(counter, by: 5)
+
+    const doubler func(i64) -> i64 = ()double_it
+    println(apply(21, ()double_it))
+    println(doubler(4))
+
+    mut port, err = parse_port("8080")
+    if err != nil {
+        println(err.msg)
+    }
+
+    _ = log_line("discarded result")
+    println("${quotient} ${remainder} ${counter} ${port} ${identity(5)}")
+}
+
+// ---------------------------------------------------------------------------
+// Standard library hover targets: hover over any `module.function` below.
+// ---------------------------------------------------------------------------
+
+do stdlib_tour() {
+    println(strings.to_upper("hello"))
+    println(strings.split("a,b,c", ","))
+    println(strings.contains("grayscale", "scale"))
+    println(strings.trim("  padded  "))
+
+    println(math.sqrt(16.0))
+    println(math.max(3, 9))
+    println(math.PI)
+
+    mut scores [i64] = {5, 3, 8}
+    arrays.sort_asc(scores)
+    println(arrays.get_max(scores))
+
+    println(time.now())
+    println(random.rand_i64(1, 100))
+    println(sprintf("%d items", {3}))
+
+    println(here())
+    println(len(APP_NAME))
+    println(char_count("héllo"))
+    flush()
+}
+
+// `using` brings a module's members into scope for this function only.
+do using_tour() {
+    using strings
+
+    print(to_upper("using "))
+    eprintln("to stderr")
+    mut original [i64] = {1, 2, 3}
+    mut duplicate = copy(original)
+    sleep_ms(1)
+    println(len(duplicate))
+}
+
+do main() {
+    println(APP_NAME)
+    println(add(1, 2))
+    println(describe(Level.HIGH))
+    println(direction_name(Direction.NORTH))
+    println(shape_area(Shape.Circle(2.0)))
+    control_flow_tour()
+    ensure_tour()
+    operator_tour()
+    collections_tour()
+    pointer_tour()
+    struct_tour()
+    call_tour()
+    stdlib_tour()
+    using_tour()
+    say_hello_from_c()
+    println(helper())
+    println(old_add(1, 2))   // calling a #deprecated function shows a warning
+    mut loaded, load_err = load_port("8080")
+    println("${loaded} ${load_err == nil}")
+
+    // Try me: uncomment the next line to see a diagnostic in the editor.
+    // mut broken i64 = "not a number"
+}
