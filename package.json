@@ -4,6 +4,10 @@
   "description": "Language server for the Grayscale programming language: diagnostics, completion, hover, and go-to-definition",
   "version": "0.1.0",
   "publisher": "grayscale-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grayscale-lang/grayls.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },

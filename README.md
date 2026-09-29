@@ -72,44 +72,19 @@ Then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
 
 ### Zed
 
-Zed requires a small dev extension (in the `zed-extension/` folder of this repo) to register the Grayscale language and syntax highlighting.
-
-**Step 1:** Build grayls:
-
-```sh
-npm run build
-```
-
-**Step 2:** Install the dev extension in Zed:
+Zed needs a small dev extension (the `zed-extension/` folder of this repo) for the Grayscale language, syntax highlighting, and the language server.
 
 - `Cmd+Shift+P` → **"zed: install dev extension"**
 - Select the `zed-extension/` folder inside this repo
 - Wait ~30 seconds for Zed to compile the Rust extension
 
-The extension auto-detects your node installation (NVM or Homebrew) and assumes grayls is cloned to `~/code/grayls`.
-
-**Step 3 (only if grayls is cloned somewhere other than `~/code/grayls`):** Override the server path in `~/.config/zed/settings.json`:
-
-```json
-{
-  "lsp": {
-    "grayls": {
-      "binary": {
-        "path": "node",
-        "arguments": ["/absolute/path/to/grayls/out/server.js", "--stdio"]
-      }
-    }
-  }
-}
-```
-
-> **Important:** Use the full absolute path — do not use `~`.
-
-Zed spawns the server automatically when you open any `.gray` file. No `.zed/settings.json` is needed in your project — the extension handles language registration.
-
-**After updating server code:** run `npm run build`, then close and reopen the `.gray` file.
+The first time you open a `.gray` file, the extension downloads `server.js` from the latest [grayls release](https://github.com/grayscale-lang/grayls/releases) and runs it with your `node`. Node.js v18 or later must be on your `PATH`. You do not need to build grayls.
 
 To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `grayls`.
+
+### Other editors
+
+Each release also includes `server.js`. Any editor that can launch a language server over stdio can use it: download `server.js` and run `node server.js --stdio`.
 
 ---
 

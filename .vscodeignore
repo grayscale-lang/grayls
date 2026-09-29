@@ -6,3 +6,7 @@ esbuild.js
 **/*.map
 **/*.ts
 !out/**
+zed-extension/**
+.github/**
+.vscode/**
+.claude/**
