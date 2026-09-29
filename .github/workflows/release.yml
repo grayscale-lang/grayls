@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "src/**"
+      - "syntaxes/**"
       - "package.json"
       - "package-lock.json"
       - "esbuild.js"

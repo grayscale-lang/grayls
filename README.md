@@ -13,7 +13,7 @@ A Language Server Protocol (LSP) implementation for the [Grayscale programming l
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) v18 or later
+- [Node.js](https://nodejs.org) v18 or later (Zed and other editors only; VS Code does not need it)
 - `gray` on your `$PATH` (required for diagnostics — all other features work without it), kept up to date with `gray update`
 
 grayls always runs whichever `gray` comes first on your `$PATH`, typically the installed release. It does not look for a `gray` built from a local checkout of the Grayscale repo. If you build the compiler yourself, put that build first on your `$PATH` (for example `export PATH="/path/to/Grayscale:$PATH"`, where `/path/to/Grayscale` contains the built `gray`), then restart your editor.
@@ -29,56 +29,31 @@ gray
 
 ---
 
-## Build
-
-```sh
-git clone https://github.com/grayscale-lang/grayls
-cd grayls
-npm install
-npm run build
-```
-
-The compiled server lands in `out/server.js`.
-
----
-
 ## Editor Setup
 
 ### VS Code
 
-Install the extension once as a `.vsix` package. After that it activates automatically whenever you open a `.gray` file — no extra steps.
+1. Download `grayls.vsix` from the [latest release](https://github.com/grayscale-lang/grayls/releases).
+2. In VS Code, open **Extensions → ⋯ → Install from VSIX…** and select the file. Or run `code --install-extension grayls.vsix`.
+3. Open a `.gray` file. The extension activates automatically.
 
-```sh
-cd /path/to/grayls
-npm install -g @vscode/vsce
-npm run build
-vsce package          # produces grayls-0.1.0.vsix
-code --install-extension grayls-0.1.0.vsix
-```
-
-Or install via the VS Code UI: **Extensions → ⋯ → Install from VSIX…**
-
-**After updating server code:** rebuild and reinstall:
-
-```sh
-npm run build && vsce package && code --install-extension grayls-0.1.0.vsix
-```
-
-Then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
-
-> **For extension development only:** press **F5** in the grayls folder to open an Extension Development Host window. This is for debugging the extension itself, not for daily use.
+To update, download the newest `grayls.vsix` and install it the same way, then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
 
 ---
 
 ### Zed
 
-Zed needs a small dev extension (the `zed-extension/` folder of this repo) for the Grayscale language, syntax highlighting, and the language server.
+Zed needs a small dev extension (the `zed-extension/` folder of this repo) for the Grayscale language, syntax highlighting, and the language server. Zed compiles it, so [Rust](https://www.rust-lang.org/tools/install) must be installed via `rustup`.
 
-- `Cmd+Shift+P` → **"zed: install dev extension"**
-- Select the `zed-extension/` folder inside this repo
-- Wait ~30 seconds for Zed to compile the Rust extension
+1. Clone this repo:
+   ```sh
+   git clone https://github.com/grayscale-lang/grayls
+   ```
+2. In Zed, press `Cmd+Shift+P` → **"zed: install dev extension"** and select the `zed-extension/` folder inside the clone.
+3. Wait ~30 seconds for Zed to compile the extension.
+4. Open a `.gray` file.
 
-The first time you open a `.gray` file, the extension downloads `server.js` from the latest [grayls release](https://github.com/grayscale-lang/grayls/releases) and runs it with your `node`. Node.js v18 or later must be on your `PATH`. You do not need to build grayls.
+The first time you open a `.gray` file, the extension downloads `server.js` from the latest [grayls release](https://github.com/grayscale-lang/grayls/releases) and runs it with your `node`. Node.js v18 or later must be on your `PATH`. Later releases are picked up automatically; you only reinstall the extension if the `zed-extension/` folder changes.
 
 To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `grayls`.
 
@@ -90,7 +65,7 @@ Each release also includes `server.js`. Any editor that can launch a language se
 
 ## Try It Out
 
-Once your editor is set up, open [`main.gray`](main.gray) in the root of this repo. It is a single file that exercises everything grayls and the tree-sitter grammar support: syntax highlighting for every kind of token, hover docs for keywords, builtins, standard library functions and your own symbols, completion, go to definition, and diagnostics. The comments in the file point out what to try.
+Once your editor is set up, open [`main.gray`](main.gray) from the root of this repo (download it from GitHub if you only installed the extension). It is a single file that exercises everything grayls and the tree-sitter grammar support: syntax highlighting for every kind of token, hover docs for keywords, builtins, standard library functions and your own symbols, completion, go to definition, and diagnostics. The comments in the file point out what to try.
 
 ---
 
@@ -133,7 +108,6 @@ grayls/
       gray-data.ts        all Grayscale keywords, types, builtins, and docs
       symbols.ts          in-file symbol scanner
   zed-extension/          Zed dev extension (registers Grayscale language + grayls)
-  out/                    compiled output (generated by npm run build)
   package.json
   tsconfig.json
 ```
