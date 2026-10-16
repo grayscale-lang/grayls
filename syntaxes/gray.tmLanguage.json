@@ -223,15 +223,18 @@
       }
     },
     "function-declaration": {
-      "match": "\\b(private\\s+)?(do|fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "match": "\\b(private\\s+)?(unsafe\\s+)?(do|fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
       "captures": {
         "1": {
           "name": "storage.modifier.gray"
         },
         "2": {
-          "name": "keyword.declaration.function.gray"
+          "name": "storage.modifier.gray"
         },
         "3": {
+          "name": "keyword.declaration.function.gray"
+        },
+        "4": {
           "name": "entity.name.function.gray"
         }
       }
@@ -280,7 +283,7 @@
       "patterns": [
         {
           "name": "keyword.control.gray",
-          "match": "\\b(if|or|otherwise|elif|else|for|for_each|as_long_as|while|loop|when|switch|is|case|default|break|continue|return|or_return|ensure|defer)\\b"
+          "match": "\\b(if|or|otherwise|elif|else|for|for_each|as_long_as|while|loop|when|switch|is|case|default|break|continue|return|or_return|or_panic|or_default|ensure|defer)\\b"
         },
         {
           "name": "keyword.operator.word.gray",
@@ -296,7 +299,7 @@
         },
         {
           "name": "storage.modifier.gray",
-          "match": "\\b(private)\\b"
+          "match": "\\b(private|unsafe)\\b"
         },
         {
           "match": "(?<=import\\s)(and)(?=\\s+use\\b)",

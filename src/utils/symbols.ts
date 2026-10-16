@@ -35,10 +35,39 @@ export interface GraySymbol {
   returns?: string;
 }
 
+/**
+ * Names declared by one `mut`/`const` line, after the keyword. A line may declare
+ * several: `a, b i64 = 1, 2`, `a i64, b f64 = f()`, `kept, _ = f()`. A type
+ * written once after the last name applies to every name that has none of its own.
+ */
+function declaredNames(afterKeyword: string): { name: string; type?: string }[] {
+  const head = afterKeyword.replace(/\/\/.*$/, '').split('=')[0];
+  const segments: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let k = 0; k < head.length; k++) {
+    const c = head[k];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ',' && depth === 0) { segments.push(head.slice(start, k)); start = k + 1; }
+  }
+  segments.push(head.slice(start));
+
+  const parsed = segments.map(seg => /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*?)\s*$/.exec(seg));
+  const sharedType = parsed[parsed.length - 1]?.[2] || undefined;
+  const hasOwnTypes = parsed.slice(0, -1).some(p => p && p[2]);
+  const result: { name: string; type?: string }[] = [];
+  for (const p of parsed) {
+    if (!p || p[1] === '_') continue;
+    result.push({ name: p[1], type: p[2] || (hasOwnTypes ? undefined : sharedType) });
+  }
+  return result;
+}
+
 // Single-line declaration patterns
-const MUT_PATTERN    = /^\s*(?:private\s+)?mut\s+([A-Za-z][A-Za-z0-9_]*)/;
-const CONST_VAR_PATTERN = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+(?!struct\b|enum\b)/;
-const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:do|fn|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
+const MUT_PATTERN    = /^\s*(?:private\s+)?mut\s+(?=[A-Za-z])/;
+const CONST_VAR_PATTERN = /^\s*(?:private\s+)?const\s+(?=[A-Za-z])(?![A-Za-z0-9_]+\s+(?:struct|enum)\b)/;
+const FUNC_PATTERN   = /^\s*(?:private\s+)?(?:unsafe\s+)?(?:do|fn|func)\s+([A-Za-z][A-Za-z0-9_]*)\s*\(/;
 // Keyword-less variable declaration: `mut` is optional, so `count i64 = 0` and
 // `name, other i64` are declarations. A type token is required after the name —
 // the fully-inferred form (`name = expr`) is indistinguishable from a plain
@@ -49,7 +78,7 @@ const NON_DECL_HEADS = new Set([
   'return', 'for', 'for_each', 'if', 'when', 'switch', 'otherwise', 'else', 'or',
   'elif', 'is', 'case', 'default', 'break', 'continue', 'loop', 'while',
   'as_long_as', 'import', 'use', 'using', 'ensure', 'defer', 'new', 'and',
-  'const', 'mut', 'do', 'fn', 'func', 'alias', 'private', 'range', 'cast',
+  'const', 'mut', 'do', 'fn', 'func', 'alias', 'private', 'unsafe', 'range', 'cast',
   'in', 'not_in', 'println', 'print', 'eprintln', 'eprint', 'extern',
 ]);
 const STRUCT_PATTERN = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
@@ -447,7 +476,7 @@ export function scanSymbols(text: string): GraySymbol[] {
         }
         continue;
       }
-      if (rel === 1 && !/^\s*(?:private\s+)?(?:do|fn|func)\b/.test(l)) fieldRegion.add(j);
+      if (rel === 1 && !/^\s*(?:private\s+)?(?:unsafe\s+)?(?:do|fn|func)\b/.test(l)) fieldRegion.add(j);
       rel += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
       if (rel <= 0) rel = -1;
     }
@@ -520,24 +549,19 @@ export function scanSymbols(text: string): GraySymbol[] {
           params: sig.params,
           returns: sig.returns,
         });
-      } else if ((m = MUT_PATTERN.exec(line))) {
-        symbols.push({
-          name: m[1],
-          kind: 'variable',
-          line: i,
-          char: line.indexOf(m[1]),
-          declaration: sourceLines[i].trim(),
-          type: extractType(line),
-        });
-      } else if ((m = CONST_VAR_PATTERN.exec(line))) {
-        symbols.push({
-          name: m[1],
-          kind: 'constant',
-          line: i,
-          char: line.indexOf(m[1]),
-          declaration: sourceLines[i].trim(),
-          type: extractType(line),
-        });
+      } else if ((m = MUT_PATTERN.exec(line)) || (m = CONST_VAR_PATTERN.exec(line))) {
+        const kind = /^\s*(?:private\s+)?mut\b/.test(line) ? 'variable' : 'constant';
+        const declared = declaredNames(line.slice(m[0].length));
+        for (const entry of declared) {
+          symbols.push({
+            name: entry.name,
+            kind,
+            line: i,
+            char: line.indexOf(entry.name, m[0].length),
+            declaration: sourceLines[i].trim(),
+            type: declared.length === 1 ? extractType(line) : entry.type,
+          });
+        }
       } else if (!fieldRegion.has(i) && (m = BARE_VAR_PATTERN.exec(line))) {
         const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
         if (!NON_DECL_HEADS.has(names[0])) {

@@ -79,6 +79,9 @@
   "ensure"
   "defer"
   "or_return"
+  "or_panic"
+  "or_default"
+  "unsafe"
   "cast"
 ] @keyword
 
