@@ -7,7 +7,7 @@ export const KEYWORDS: string[] = [
   'for', 'for_each', 'if', 'is', 'loop', 'or', 'or_default', 'or_panic', 'or_return', 'otherwise', 'return', 'switch',
   'when', 'while',
   // Declarations
-  'alias', 'const', 'do', 'enum', 'fn', 'import', 'mut', 'new', 'private', 'struct', 'unsafe', 'use', 'using',
+  'alias', 'const', 'distinct', 'do', 'enum', 'fn', 'generic', 'import', 'mut', 'new', 'private', 'struct', 'unsafe', 'use', 'using',
   // Operators / values
   'bit_and', 'bit_not', 'bit_or', 'bit_shift_left', 'bit_shift_right', 'bit_xor',
   'cast', 'extern', 'false', 'in', 'not_in', 'nil', 'range', 'true',
@@ -33,7 +33,7 @@ export const BUILTINS: string[] = [
   // Type utilities
   'type_of', 'size_of', 'cast', 'fields', 'here',
   // String utilities
-  'to_char', 'char_count', 'c_string',
+  'to_char', 'char_count', 'from_c_string', 'to_c_string',
   // Error / control
   'error', 'assert', 'panic', 'exit',
   // Range
@@ -53,12 +53,12 @@ export const BUILTINS: string[] = [
 export const STDLIB_MODULES: string[] = [
   'arrays', 'strings', 'chars', 'maps', 'math', 'time', 'random',
   'json', 'io', 'os', 'http', 'crypto', 'encoding',
-  'uuid', 'binary', 'sqlite', 'server', 'regex', 'csv',
+  'path', 'uuid', 'binary', 'sqlite', 'server', 'regex', 'csv',
   'net', 'threads', 'sync', 'channels', 'mem', 'atomic', 'fmt', 'strconv', 'runtime',
 ];
 
 export const ATTRIBUTES: string[] = [
-  'doc', 'json', 'flags', 'error_code', 'strict', 'discard', 'deprecated', 'test',
+  'doc', 'json', 'flags', 'error_code', 'strict', 'discard', 'define', 'deprecated', 'test',
 ];
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'arrays.sort_desc': '**`arrays.sort_desc(&arr [T])`** — Sorts arr in descending order in place. Works on arrays of any number type, char, bool, and string.',
   'arrays.split_every': '**`arrays.split_every(arr [T], size i64) -> [[T]]`** — Splits arr into sub-arrays of at most size elements each. The last chunk may be smaller.',
   'arrays.swap': '**`arrays.swap(&arr [T], i i64, j i64)`** — Swaps the elements at indices i and j in place. Panics if either index is out of bounds.',
-
   // @atomic
   'atomic.add': '**`atomic.add(ptr ^i64, val i64) -> i64`** — Atomic add. Returns the previous value.',
   'atomic.and': '**`atomic.and(ptr ^i64, val i64) -> i64`** — Atomic bitwise AND. Returns the previous value.',
@@ -130,7 +129,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'atomic.store': '**`atomic.store(ptr ^i64, val i64)`** — Atomically store a value.',
   'atomic.sub': '**`atomic.sub(ptr ^i64, val i64) -> i64`** — Atomic subtract. Returns the previous value.',
   'atomic.xor': '**`atomic.xor(ptr ^i64, val i64) -> i64`** — Atomic bitwise XOR. Returns the previous value.',
-
   // @binary
   'binary.decode_f32_be': '**`binary.decode_f32_be(bytes [u8]) -> f32`** — Decodes a 4-byte IEEE 754 big-endian array as an f32.',
   'binary.decode_f32_le': '**`binary.decode_f32_le(bytes [u8]) -> f32`** — Decodes a 4-byte IEEE 754 little-endian array as an f32.',
@@ -184,31 +182,34 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'binary.encode_u64_be': '**`binary.encode_u64_be(val u64) -> [u8]`** — Encodes an unsigned 64-bit integer as an 8-byte big-endian array.',
   'binary.encode_u64_le': '**`binary.encode_u64_le(val u64) -> [u8]`** — Encodes an unsigned 64-bit integer as an 8-byte little-endian array.',
   'binary.encode_u8': '**`binary.encode_u8(val u8) -> [u8]`** — Encodes an unsigned 8-bit integer as a 1-byte array.',
-
   // @channels
   'channels.close': '**`channels.close(ch Channel)`** — Close a channel.',
-  'channels.open': '**`channels.open(capacity i64) -> Channel`** — Create a buffered channel with the given capacity.',
+  'channels.open': '**`channels.open(capacity i64) -> Channel`** — Create a buffered channel with the given capacity. A capacity below 1 is a runtime panic.',
   'channels.receive': '**`channels.receive(ch Channel) -> i64`** — Receive a value from a channel. Blocks if the channel is empty.',
-  'channels.send': '**`channels.send(ch Channel, value i64)`** — Send a value into a channel. Blocks if the channel is full.',
+  'channels.send': '**`channels.send(ch Channel, value i64)`** — Send a value into a channel. Blocks if the channel is full. Sending on a closed channel is a runtime panic.',
   'channels.try_receive': '**`channels.try_receive(ch Channel) -> (i64, bool)`** — Non-blocking receive. Returns the value and true if available, or (0, false) if empty. Always use destructuring.',
   'channels.try_send': '**`channels.try_send(ch Channel, value i64) -> bool`** — Non-blocking send. Returns true if the value was sent, false if the channel is full.',
-
   // @chars
   'chars.escape': '**`chars.escape(c char) -> string`** — Returns a printable rendering of c for debugging or codegen. Backslash and the common control characters render as two-character escapes; other control characters and DEL render as hex escapes; non-ASCII codepoints render as braced Unicode escapes; printable ASCII is returned unchanged. Never fails.',
+  'chars.is_alnum': '**`chars.is_alnum(c char) -> bool`** — True when c is an ASCII letter or decimal digit. Non-ASCII codepoints always return false. Never fails.',
+  'chars.is_alpha': '**`chars.is_alpha(c char) -> bool`** — True when c is an ASCII letter (a-z or A-Z). Non-ASCII codepoints always return false. Never fails.',
   'chars.is_ascii': '**`chars.is_ascii(c char) -> bool`** — True when c is a 7-bit ASCII codepoint (0 through 127). Never fails.',
   'chars.is_consonant': '**`chars.is_consonant(c char) -> bool`** — True when c is an ASCII letter that is not a vowel, so y is a consonant. Non-ASCII codepoints always return false. Never fails.',
   'chars.is_control': '**`chars.is_control(c char) -> bool`** — True when c is an ASCII control character: the C0 range (0 through 31) or DEL (127). Never fails.',
+  'chars.is_digit': '**`chars.is_digit(c char) -> bool`** — True when c is a decimal digit (0-9). Non-ASCII codepoints always return false. Never fails.',
   'chars.is_hex_digit': '**`chars.is_hex_digit(c char) -> bool`** — True when c is a hexadecimal digit: 0 through 9, a through f, or A through F. Never fails.',
+  'chars.is_lower': '**`chars.is_lower(c char) -> bool`** — True when c is a lowercase ASCII letter (a-z). Non-ASCII codepoints always return false. Never fails.',
   'chars.is_printable': '**`chars.is_printable(c char) -> bool`** — True when c is a printable ASCII character, space (32) through tilde (126). Non-ASCII codepoints are not classified as printable. Never fails.',
   'chars.is_punct': '**`chars.is_punct(c char) -> bool`** — True when c is an ASCII punctuation or symbol character: printable, but neither a letter, a digit, nor a space. Never fails.',
+  'chars.is_upper': '**`chars.is_upper(c char) -> bool`** — True when c is an uppercase ASCII letter (A-Z). Non-ASCII codepoints always return false. Never fails.',
   'chars.is_vowel': '**`chars.is_vowel(c char) -> bool`** — True when c is one of a, e, i, o, u in either case. y is not a vowel. Non-ASCII codepoints always return false. Never fails.',
+  'chars.is_whitespace': '**`chars.is_whitespace(c char) -> bool`** — True when c is space, tab, newline, carriage return, vertical tab, or form feed. Non-ASCII codepoints always return false. Never fails.',
   'chars.is_word_char': '**`chars.is_word_char(c char) -> bool`** — True when c is an ASCII identifier character: a letter, a digit, or an underscore. Matches the regex class [A-Za-z0-9_]. Never fails.',
   'chars.mirror': '**`chars.mirror(c char) -> char`** — Swaps a bracket with its partner in both directions: ( and ), [ and ], { and }, < and >. Every other codepoint is returned unchanged. Never fails.',
   'chars.string_width': '**`chars.string_width(s string) -> i64`** — Returns the total terminal display width of s: the sum of chars.width over its codepoints, treating a -1 (control character) result as 0. Does not expand tabs. A ZWJ emoji sequence is summed from its parts rather than treated as one grapheme cluster, so it over-counts those. Never fails.',
   'chars.to_lower': '**`chars.to_lower(c char) -> char`** — Returns the ASCII lowercase form of c. Anything that is not an uppercase ASCII letter — digits, symbols, whitespace, and non-ASCII codepoints — is returned unchanged. Never fails.',
   'chars.to_upper': '**`chars.to_upper(c char) -> char`** — Returns the ASCII uppercase form of c. Anything that is not a lowercase ASCII letter — digits, symbols, whitespace, and non-ASCII codepoints — is returned unchanged. Never fails.',
   'chars.width': '**`chars.width(c char) -> i64`** — Returns the terminal display width of c, wcwidth semantics: -1 for a C0/C1 control character, 0 for a zero-width codepoint (combining marks, joiners, variation selectors), 2 for a wide codepoint (CJK ideographs, Hangul syllables, fullwidth forms, default-presentation emoji), 1 for everything else. East Asian "ambiguous width" codepoints are treated as 1. Never fails.',
-
   // @crypto
   'crypto.constant_time_equal': '**`crypto.constant_time_equal(a string, b string) -> bool`** — Compare a and b without an early return on the first mismatch, so timing does not reveal how much of a secret matched. A length difference is folded into the result.',
   'crypto.crc32': '**`crypto.crc32(data string) -> u64`** — Compute the IEEE CRC-32 checksum of data (reflected, polynomial 0xEDB88320), returned as a u64. This is a checksum, not a cryptographic hash.',
@@ -221,7 +222,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'crypto.sha256': '**`crypto.sha256(data string) -> string`** — Compute the SHA-256 hash of data and return it as a hex string.',
   'crypto.sha512': '**`crypto.sha512(data string) -> string`** — Compute the SHA-512 hash of data and return it as a hex string.',
   'crypto.totp': '**`crypto.totp(secret string, timestamp i64, digits i64) -> string`** — Compute an RFC 6238 time-based one-time password from the raw shared secret bytes, using SHA-1 and a 30-second time step. `digits` is typically 6 or 8; the result is zero-padded to that width. Panics if `digits` is outside 1..9. Base32 decoding of the secret is the caller\'s responsibility.',
-
   // @csv
   'csv.column': '**`csv.column(data [[string]], name string) -> [string]`** — Returns the values under header name, one per data row (the header cell itself is excluded). Panics if name is not in the header.',
   'csv.detect_delimiter': '**`csv.detect_delimiter(sample string) -> char`** — Inspects the first line of sample and returns whichever of comma, semicolon, tab, or pipe appears most often, defaulting to comma when none is found.',
@@ -231,81 +231,64 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'csv.headers': '**`csv.headers(rows [[string]]) -> [string]`** — Extracts and returns the first row (header row) from parsed CSV data as a flat string array. Returns a single value; do not use destructuring.',
   'csv.parse': '**`csv.parse(data string) -> [[string]]`** — Parses a CSV-formatted string and returns an array of rows, where each row is an array of string fields. Returns a single value; do not use destructuring.',
   'csv.parse_delimited': '**`csv.parse_delimited(data string, delimiter char) -> [[string]]`** — Like parse, but splits fields on the given single-character delimiter (a tab or a semicolon, say). RFC 4180 quoting rules still apply. Returns a single value; do not use destructuring.',
-  'csv.read_file': '**`csv.read_file(path string) -> ([[string]], Error)`** — Reads the CSV file at path and returns parsed rows as an array of string arrays. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'csv.select': '**`csv.select(data [[string]], names [string]) -> [[string]]`** — Projects the named columns in the given order, keeping the header row. Panics if any name is not in the header.',
   'csv.sort_by_column': '**`csv.sort_by_column(data [[string]], name string) -> [[string]]`** — Returns a new array with data rows stably sorted in ascending lexicographic order by the value in column name. The header row stays first. Panics if name is not in the header.',
-  'csv.to_json': '**`csv.to_json(data [[string]]) -> string`** — Converts data (via to_maps) to a compact JSON array of objects. Every value is a JSON string, since CSV has no types.',
   'csv.to_maps': '**`csv.to_maps(data [[string]]) -> [map[string:string]]`** — Treats row 0 as the header and returns rows 1..N as maps keyed by header name. A short row omits the missing keys; a long row drops the extra fields. Data with 0 or 1 rows returns an empty array.',
-  'csv.to_markdown': '**`csv.to_markdown(data [[string]]) -> string`** — Renders data as a GitHub-flavored Markdown table: row 0 becomes the header plus a \'---\' separator row, and a pipe in a cell is escaped with a preceding backslash. No column alignment; a trailing newline is included.',
-  'csv.write_file': '**`csv.write_file(path string, rows [[string]]) -> (bool, Error)`** — Writes an array of rows (each row an array of strings) to a CSV file at path, with the same RFC 4180 field quoting as encode. Creates the file if it does not exist; overwrites if it does. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-
   // @encoding
-  'encoding.base64_decode': '**`encoding.base64_decode(s string) -> string`** — Decodes a base64-encoded string.',
+  'encoding.base64_decode': '**`encoding.base64_decode(s string) -> (string, Error)`** — Decodes a base64-encoded string.',
   'encoding.base64_encode': '**`encoding.base64_encode(s string) -> string`** — Encodes a string to base64.',
-  'encoding.base64_url_decode': '**`encoding.base64_url_decode(s string) -> string`** — Decodes URL-safe base64, with or without trailing padding. Panics on invalid input.',
+  'encoding.base64_url_decode': '**`encoding.base64_url_decode(s string) -> (string, Error)`** — Decodes URL-safe base64, with or without trailing padding. Returns an error on invalid input.',
   'encoding.base64_url_encode': '**`encoding.base64_url_encode(s string) -> string`** — Encodes a string to unpadded URL-safe base64 (RFC 4648 section 5): the standard alphabet with `+` and `/` replaced by `-` and `_`, and trailing `=` padding removed. Used for JWTs and query parameters.',
-  'encoding.from_base64': '**`encoding.from_base64(b64 string) -> [u8]`** — Decodes a base64-encoded string into a u8 array.',
-  'encoding.from_hex': '**`encoding.from_hex(hex string) -> [u8]`** — Decodes a hex-encoded string into a u8 array.',
+  'encoding.from_base64': '**`encoding.from_base64(b64 string) -> ([u8], Error)`** — Decodes a base64-encoded string into a u8 array.',
+  'encoding.from_hex': '**`encoding.from_hex(hex string) -> ([u8], Error)`** — Decodes a hex-encoded string into a u8 array.',
   'encoding.from_string': '**`encoding.from_string(s string) -> [u8]`** — Converts a UTF-8 string into a u8 array.',
-  'encoding.hex_decode': '**`encoding.hex_decode(s string) -> string`** — Decodes a hex-encoded string.',
+  'encoding.hex_decode': '**`encoding.hex_decode(s string) -> (string, Error)`** — Decodes a hex-encoded string.',
   'encoding.hex_encode': '**`encoding.hex_encode(s string) -> string`** — Encodes a string to lowercase hex.',
   'encoding.html_escape': '**`encoding.html_escape(s string) -> string`** — Replaces the five HTML-significant characters with entities: `&` `<` `>` `"` and `\'`. Safe for use in element text and double- or single-quoted attribute values.',
   'encoding.html_unescape': '**`encoding.html_unescape(s string) -> string`** — Reverses html_escape. Resolves the named entities amp, lt, gt, quot, and apos, plus decimal and hexadecimal numeric character references. Unknown entities are left untouched.',
-  'encoding.shell_escape': '**`encoding.shell_escape(s string) -> string`** — Quotes a string for safe use as a single argument in a POSIX shell command. Returns the argument unchanged when it contains only safe characters, otherwise wraps it in single quotes. Not for cmd.exe.',
+  'encoding.shell_escape': '**`encoding.shell_escape(s string) -> string`** — Quotes a string for safe use as a single argument in a shell command run by the platform shell. Returns the argument unchanged when it contains only safe characters. On POSIX otherwise wraps it in single quotes; on Windows wraps it in double quotes for cmd.exe and caret-escapes its metacharacters.',
   'encoding.to_base64': '**`encoding.to_base64(bytes [u8]) -> string`** — Encodes a u8 array as a base64 string.',
   'encoding.to_hex': '**`encoding.to_hex(bytes [u8]) -> string`** — Encodes a u8 array as a lowercase hex string.',
   'encoding.to_string': '**`encoding.to_string(bytes [u8]) -> string`** — Converts a u8 array to a UTF-8 string.',
-  'encoding.url_decode': '**`encoding.url_decode(s string) -> string`** — Decodes a URL percent-encoded string.',
+  'encoding.url_decode': '**`encoding.url_decode(s string) -> (string, Error)`** — Decodes a URL percent-encoded string.',
   'encoding.url_encode': '**`encoding.url_encode(s string) -> string`** — URL percent-encodes a string.',
-
   // @fmt
   'fmt.center': '**`fmt.center(s string, width i64, ch char) -> string`** — Returns s centered within width, padded on both sides with ch. If padding is uneven, the extra character goes on the right.',
   'fmt.eprintf': '**`fmt.eprintf(format string, args [T])`** — Prints a formatted string to stderr. Uses the same format directives as printf. Pass one array element per format directive, of a type that directive accepts. Composite types are rejected.',
   'fmt.eprintfln': '**`fmt.eprintfln(format string, args [T])`** — Prints a formatted string to stderr with a trailing newline. Uses the same format directives as printf. Pass one array element per format directive, of a type that directive accepts. Composite types are rejected.',
-  'fmt.f64_to_fixed': '**`fmt.f64_to_fixed(f f64, decimals i64) -> string`** — Returns f formatted with exactly decimals digits after the decimal point.',
-  'fmt.f64_to_scientific': '**`fmt.f64_to_scientific(f f64) -> string`** — Returns f formatted in scientific notation (e.g. "3.14e+00").',
+  'fmt.f64_to_fixed': '**`fmt.f64_to_fixed(f f64, decimals i64) -> string`** — Returns f formatted with exactly decimals digits after the decimal point. Panics if decimals is negative or the result would exceed the maximum string length.',
   'fmt.format_bytes': '**`fmt.format_bytes(n i64) -> string`** — Returns n formatted as a human-readable byte count using binary units (B, KiB, MiB, GiB, TiB, PiB). Values below 1024 are shown as whole bytes ("1023 B"); larger values use one decimal place ("1.5 KiB"). A negative n keeps a leading minus on the magnitude.',
   'fmt.format_number': '**`fmt.format_number(n i64) -> string`** — Returns n as a decimal string with ASCII comma thousands separators (no locale). 1234567 becomes "1,234,567"; -1000 becomes "-1,000".',
   'fmt.i64_to_binary': '**`fmt.i64_to_binary(n i64) -> string`** — Returns the integer n formatted as a binary string with no "0b" prefix. A negative n is formatted as its 64-bit two\'s-complement bits.',
-  'fmt.i64_to_hex': '**`fmt.i64_to_hex(n i64) -> string`** — Returns the integer n formatted as a lowercase hexadecimal string with no "0x" prefix. A negative n is formatted as its 64-bit two\'s-complement bits.',
-  'fmt.i64_to_octal': '**`fmt.i64_to_octal(n i64) -> string`** — Returns the integer n formatted as an octal string with no "0o" prefix. A negative n is formatted as its 64-bit two\'s-complement bits.',
   'fmt.pad_left': '**`fmt.pad_left(s string, width i64, ch char) -> string`** — Returns s padded on the left with ch until the total length reaches width. Returns s unchanged if it is already at least width characters long.',
   'fmt.pad_right': '**`fmt.pad_right(s string, width i64, ch char) -> string`** — Returns s padded on the right with ch until the total length reaches width. Returns s unchanged if it is already at least width characters long.',
-  'fmt.printf': '**`fmt.printf(format string, args [T])`** — Prints a formatted string to stdout. Uses C-style format directives: %d and %i (signed integer i8 to i256, or char), %u (unsigned integer u8 to u256), %x, %X and %o (any integer), %f, %e, %E, %g and %G (f32 or f64), %s (string), %b (bool), %c (char). Pass one array element per format directive, of a type that directive accepts; an unsigned integer needs %u, not %d. The elements of an array literal may differ in type, e.g. {name, 30}; an array variable\'s element type must suit every directive, and the program panics if it has fewer elements than directives. Composite types are rejected.',
+  'fmt.printf': '**`fmt.printf(format string, args [T])`** — Prints a formatted string to stdout. Uses C-style format directives: %d and %i (signed integer i8 to i256, or char), %u (unsigned integer u8 to u256), %x, %X and %o (any integer), %f, %e, %E, %g and %G (f32 or f64), %s (string), %b (bool), %c (char, or a signed integer up to i64). Pass one array element per format directive, of a type that directive accepts; an unsigned integer needs %u, not %d. The elements of an array literal may differ in type, e.g. {name, 30}; an array variable\'s element type must suit every directive, and the program panics if it has fewer elements than directives. Composite types are rejected.',
   'fmt.printfln': '**`fmt.printfln(format string, args [T])`** — Prints a formatted string to stdout with a trailing newline. Uses the same format directives as printf. Pass one array element per format directive, of a type that directive accepts. Composite types are rejected.',
   'fmt.sprintf': '**`fmt.sprintf(format string, args [T]) -> string`** — Returns a formatted string without printing it. Uses the same format directives as printf. Pass one array element per format directive, of a type that directive accepts. Composite types are rejected.',
-  'fmt.sprintfln': '**`fmt.sprintfln(format string, args [T]) -> string`** — Returns a formatted string with a trailing newline. Uses the same format directives as sprintf. Pass one array element per format directive, of a type that directive accepts. Composite types are rejected.',
-
   // @http
   'http.HttpResponse': '**`http.HttpResponse`** — The response object returned by all http request functions. It is the same type server handlers return, so a handler can return one unchanged. Also available when the server module is imported.\n\nMembers: `status i64`, `body string`, `headers map[string:string]`',
-  'http.delete': '**`http.delete(url string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP DELETE request to url with optional custom headers. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-  'http.get': '**`http.get(url string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP GET request to url with optional custom headers. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-  'http.head': '**`http.head(url string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP HEAD request to url with optional custom headers. Returns only headers with no body. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-  'http.patch': '**`http.patch(url string, body string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP PATCH request to url with the given body and optional custom headers. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-  'http.post': '**`http.post(url string, body string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP POST request to url with the given body and optional custom headers. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-  'http.put': '**`http.put(url string, body string, headers map[string:string]) -> (HttpResponse, Error)`** — Sends an HTTP PUT request to url with the given body and optional custom headers. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
-
+  'http.delete': '**`http.delete(url string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP DELETE request to url with optional custom headers (omit headers to send none). Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
+  'http.get': '**`http.get(url string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP GET request to url with optional custom headers (omit headers to send none). A response over 1 MB returns an OutOfRange Error; a chunked body is decoded, and a malformed one returns a ParseFailure Error. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
+  'http.head': '**`http.head(url string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP HEAD request to url with optional custom headers (omit headers to send none). Returns only headers with no body. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
+  'http.patch': '**`http.patch(url string, body string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP PATCH request to url with the given body and optional custom headers (omit headers to send none). Sends form-urlencoded as the Content-Type unless headers names one; Host, Content-Length and Connection in headers are not sent. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
+  'http.post': '**`http.post(url string, body string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP POST request to url with the given body and optional custom headers (omit headers to send none). Sends form-urlencoded as the Content-Type unless headers names one; Host, Content-Length and Connection in headers are not sent. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
+  'http.put': '**`http.put(url string, body string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP PUT request to url with the given body and optional custom headers (omit headers to send none). Sends form-urlencoded as the Content-Type unless headers names one; Host, Content-Length and Connection in headers are not sent. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
   // @io
   'io.OpenFlag': '**`io.OpenFlag`** — Mutually-exclusive open modes. Reachable as io.O_RDONLY or OpenFlag.O_RDONLY (same value). Underlying values: O_RDONLY 0, O_WRONLY 1, O_RDWR 2.\n\nMembers: `O_RDONLY`, `O_WRONLY`, `O_RDWR`',
   'io.append_bytes': '**`io.append_bytes(path string, data [u8]) -> (bool, Error)`** — Appends a u8 array to the end of the file at path. Creates the file if it does not exist. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.append_file': '**`io.append_file(path string, content string) -> (bool, Error)`** — Appends content to the end of the file at path. Creates the file if it does not exist. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-  'io.basename': '**`io.basename(path string) -> string`** — Returns the filename component of path, without any leading directory.',
+  'io.chmod': '**`io.chmod(path string, mode i64) -> (bool, Error)`** — Sets the permission bits of the file or directory at path to mode, for example 0o755. On Windows only the read-only bit is applied: the entry is read-only unless mode includes owner write (0o200). Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.copy_file': '**`io.copy_file(src string, dst string) -> (bool, Error)`** — Copies the file at src to dst. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.delete_file': '**`io.delete_file(path string) -> (bool, Error)`** — Deletes the file at path. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-  'io.dirname': '**`io.dirname(path string) -> string`** — Returns the parent directory component of path.',
-  'io.extension': '**`io.extension(path string) -> string`** — Returns the file extension of path including the leading dot (e.g. ".txt"). Returns an empty string if there is no extension.',
   'io.file_exists': '**`io.file_exists(path string) -> bool`** — Returns true if a file or directory exists at path. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.file_size': '**`io.file_size(path string) -> (i64, Error)`** — Returns the size of the file at path in bytes. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-  'io.glob': '**`io.glob(pattern string) -> ([string], Error)`** — Returns all file paths matching the glob pattern. Returns an empty array if there are no matches. Always use destructuring — single-variable assignment is a compile error. Glob patterns are matched relative to the working directory where the binary is executed, not the source file location.',
-  'io.is_absolute': '**`io.is_absolute(path string) -> bool`** — Returns true if path is an absolute path.',
+  'io.glob': '**`io.glob(pattern string) -> ([string], Error)`** — Returns all file paths matching the glob pattern. Returns an empty array if there are no matches. A ? and a bracket expression each match one character (a codepoint), not one byte. Always use destructuring — single-variable assignment is a compile error. Glob patterns are matched relative to the working directory where the binary is executed, not the source file location.',
   'io.is_directory': '**`io.is_directory(path string) -> bool`** — Returns true if path exists and is a directory. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.is_file': '**`io.is_file(path string) -> bool`** — Returns true if path exists and is a regular file (not a directory or special file). Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.list_dir': '**`io.list_dir(path string) -> ([string], Error)`** — Returns the names of all entries in the directory at path. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.make_dir': '**`io.make_dir(path string) -> (bool, Error)`** — Creates the directory at path. Fails if the parent directory does not exist. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.make_dir_all': '**`io.make_dir_all(path string) -> (bool, Error)`** — Creates the directory at path, including all missing parent directories. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.move_file': '**`io.move_file(src string, dst string) -> (bool, Error)`** — Moves the file at src to dst. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-  'io.normalize': '**`io.normalize(path string) -> string`** — Cleans and normalizes path by resolving ".", "..", and redundant separators.',
-  'io.path_join': '**`io.path_join(parts [string]) -> string`** — Joins path segments into a single path. An absolute segment replaces everything accumulated so far.',
   'io.read_bytes': '**`io.read_bytes(path string) -> ([u8], Error)`** — Reads the entire file at path and returns its contents as a u8 array. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.read_file': '**`io.read_file(path string) -> (string, Error)`** — Reads the entire file at path and returns its contents as a string. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.read_lines': '**`io.read_lines(path string, limit i64 = 0) -> ([string], Error)`** — Reads the file at path line by line and returns the lines. CR/LF and LF line endings are stripped. `limit` caps how many lines are read: a count, not an index, so `limit` of N returns at most N lines; `limit` of 0 (the default) reads to end of file. A negative literal `limit` is a compile error (E3150). Streaming means a small `limit` stays cheap on a large file. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
@@ -313,23 +296,22 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'io.read_stdin_bytes': '**`io.read_stdin_bytes() -> [u8]`** — Reads all of standard input to end of file and returns it as a packed u8 array.',
   'io.remove_dir': '**`io.remove_dir(path string) -> (bool, Error)`** — Removes the empty directory at path. Fails if the directory is not empty. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.remove_dir_all': '**`io.remove_dir_all(path string) -> (bool, Error)`** — Removes the directory at path and all of its contents recursively. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-  'io.rename_file': '**`io.rename_file(old_path string, new_path string) -> (bool, Error)`** — Renames (or moves) the file at old_path to new_path. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
+  'io.stat': '**`io.stat(path string) -> (FileInfo, Error)`** — Returns the metadata of the entry at path without following a final symlink, so is_symlink is accurate. mode holds the permission bits. A missing path returns a non-nil Error. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
+  'io.stdin_at_eof': '**`io.stdin_at_eof() -> bool`** — Reports whether standard input has no more data. Waits for input when stdin is interactive and nothing has been typed yet. Use it to tell the end of input from a blank line returned by input().',
   'io.temp_dir': '**`io.temp_dir() -> (string, Error)`** — Creates a temporary directory and returns its path. The directory and all its contents are automatically deleted when the program exits. Always use destructuring — single-variable assignment is a compile error.',
   'io.temp_file': '**`io.temp_file() -> (string, Error)`** — Creates a temporary file and returns its path. The file is automatically deleted when the program exits. Always use destructuring — single-variable assignment is a compile error.',
   'io.walk': '**`io.walk(path string) -> ([string], Error)`** — Recursively lists all files under path. Returns full paths relative to path. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.write_bytes': '**`io.write_bytes(path string, data [u8]) -> (bool, Error)`** — Writes a u8 array to the file at path, creating it if it does not exist or overwriting it if it does. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.write_file': '**`io.write_file(path string, content string) -> (bool, Error)`** — Writes content to the file at path, creating it if it does not exist or overwriting it if it does. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
-
   // @json
-  'json.decode': '**`json.decode(text string) -> (map[string:string], Error)`** — Parses a JSON object string into a map[string:string]. All values are returned as strings. Always use destructuring (`mut m, err = ...` or `mut m, _ = ...`) — single-variable assignment is a compile error; on invalid input err is non-nil and, with `_`, the map is empty.',
-  'json.encode': '**`json.encode(value T) -> string`** — Encodes a value as a JSON string. Accepts any primitive (integers, f32/f64, char, bool, string), a flat array of primitives, or a string-keyed map of primitives. char is encoded as its codepoint number. For #json structs use stringify() instead.',
-  'json.is_valid': '**`json.is_valid(text string) -> bool`** — Returns true if text is a valid JSON string, false otherwise.',
+  'json.decode': '**`json.decode(text string) -> (map[string:string], Error)`** — Parses a JSON object string into a map[string:string]. All values are returned as strings. Always use destructuring (`mut m, err = ...` or `mut m, _ = ...`) — single-variable assignment is a compile error; on invalid input (including text that is not valid UTF-8) err is non-nil and, with `_`, the map is empty.',
+  'json.encode': '**`json.encode(value T) -> string`** — Encodes a value as a JSON string. Accepts any primitive (integers, f32/f64, char, bool, string), a flat array of primitives, a string-keyed map of primitives, or a #json struct or array of #json structs. char is encoded as its codepoint number. Each invalid UTF-8 byte in a string is written as U+FFFD, so the output is always valid JSON.',
+  'json.is_valid': '**`json.is_valid(text string) -> bool`** — Returns true if text is a valid JSON document, false otherwise. Text that is not valid UTF-8 is not valid. A lone UTF-16 surrogate escape sequence is valid.',
   'json.parse': '**`json.parse(text string) -> T`** — Parses a JSON string directly into a #json struct. The target type is inferred from the variable declaration. The struct must be marked with the #json attribute.',
   'json.pretty_print': '**`json.pretty_print(m map[K:V], indent i64) -> string`** — Returns a pretty-printed JSON string from a map, indented by indent spaces per level.',
-  'json.stringify': '**`json.stringify(value T) -> string`** — Encodes a #json struct to a JSON string. Also accepts maps and other types as a fallback. Use on structs marked with the #json attribute.',
-
   // @maps
   'maps.clear': '**`maps.clear(&m map[K:V])`** — Removes all entries from m, leaving it empty. Modifies the map in place.',
+  'maps.contains_key': '**`maps.contains_key(m map[K:V], key K) -> bool`** — Returns true if m contains an entry with the given key.',
   'maps.contains_value': '**`maps.contains_value(m map[K:V], value V) -> bool`** — Returns true if any entry in m has the given value.',
   'maps.find_key': '**`maps.find_key(m map[K:V], value V) -> (K, bool)`** — Returns the key of the first entry, in insertion order, whose value equals value, with true; otherwise the zero value of K with false. V must be a primitive type or string. m is not modified.',
   'maps.get_and_remove': '**`maps.get_and_remove(&m map[K:V], key K) -> (V, bool)`** — Removes key from m and returns (value, true). If key is absent, m is unchanged and the zero value of V is returned with false.',
@@ -337,13 +319,11 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'maps.get_or_default': '**`maps.get_or_default(m map[K:V], key K, default V) -> V`** — Returns the value for key if it exists, otherwise returns default.',
   'maps.get_or_insert': '**`maps.get_or_insert(&m map[K:V], key K, default V) -> V`** — Returns the value stored under key. If key is absent, stores default under key and returns it. get_or_default is the read-only counterpart.',
   'maps.get_values': '**`maps.get_values(m map[K:V]) -> [V]`** — Returns all values in m as an array. Order reflects insertion order.',
-  'maps.has_key': '**`maps.has_key(m map[K:V], key K) -> bool`** — Returns true if m contains an entry with the given key.',
   'maps.is_empty': '**`maps.is_empty(m map[K:V]) -> bool`** — Returns true if m has no entries.',
   'maps.is_equal': '**`maps.is_equal(a map[K:V], b map[K:V]) -> bool`** — Returns true if a and b have the same keys and values. K and V must be primitives or string. Use this instead of == which is not allowed on maps.',
   'maps.merge': '**`maps.merge(m1 map[K:V], m2 map[K:V]) -> map[K:V]`** — Returns a new map containing all entries from m1 and m2. When both maps share a key, m2\'s value wins.',
   'maps.remove_key': '**`maps.remove_key(&m map[K:V], key K)`** — Removes the entry with the given key from m. Does nothing if the key is not present. Modifies the map in place.',
   'maps.sorted_keys': '**`maps.sorted_keys(m map[K:V]) -> [K]`** — Returns a new array of the keys of m in ascending order; m is not modified. K must be string, an integer type, or char. Strings order byte-wise, matching strings.compare.',
-
   // @math
   'math.E': '**`math.E`** = `2.71828182845904523536` — Euler\'s number — the base of the natural logarithm.',
   'math.EPSILON': '**`math.EPSILON`** = `2.2204460492503131e-16` — The difference between 1.0 and the next larger f64.',
@@ -410,29 +390,26 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'math.tan': '**`math.tan(rad f64) -> f64`** — Returns the tangent of an angle in radians.',
   'math.tanh': '**`math.tanh(n f64) -> f64`** — Returns the hyperbolic tangent of n.',
   'math.trunc': '**`math.trunc(n f64) -> f64`** — Truncates n toward zero, returned as f64.',
-
   // @mem
-  'mem.alloc': '**`mem.alloc(a Arena, value T) -> ^T`** — Allocate a value on the given arena and return a pointer to it. Works with primitives, strings, and arrays.',
-  'mem.arena': '**`mem.arena(size i64) -> Arena`** — Create a new arena with the given initial block size in bytes.',
-  'mem.destroy': '**`mem.destroy(a Arena)`** — Destroy an arena and free all its memory.',
-  'mem.fill': '**`mem.fill(ptr ^T, val i64, n i64)`** — Set n bytes starting at ptr to val.',
-  'mem.init': '**`mem.init(a Arena, Type) -> ^Type`** — Allocate a zero-initialized value of the given type on the arena and return a pointer to it.',
-  'mem.raw_copy': '**`mem.raw_copy(dest ^T, src ^T, n i64)`** — Copy n bytes from src to dest.',
-  'mem.reset': '**`mem.reset(a Arena)`** — Reset an arena for reuse. Keeps allocated blocks but marks all memory as free.',
-  'mem.usage': '**`mem.usage(a Arena) -> i64`** — Return the number of bytes currently used in the arena.',
-  'mem.zero': '**`mem.zero(ptr ^T, n i64)`** — Zero n bytes starting at ptr.',
-
+  'mem.alloc': '**`mem.alloc(a Arena, value T) -> ^T`** — Allocate a value on the given arena and return a pointer to it. Works with primitives, strings, and arrays. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.arena': '**`mem.arena(size i64) -> Arena`** — Create a new arena with the given initial block size in bytes. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.destroy': '**`mem.destroy(a Arena)`** — Destroy an arena and free all its memory. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.fill': '**`mem.fill(ptr ^T, val i64, n i64)`** — Set n bytes starting at ptr to val. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.init': '**`mem.init(a Arena, Type) -> ^Type`** — Allocate a zero-initialized value of the given type on the arena and return a pointer to it. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.raw_copy': '**`mem.raw_copy(dest ^T, src ^T, n i64)`** — Copy n bytes from src to dest. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.reset': '**`mem.reset(a Arena)`** — Reset an arena for reuse. Keeps allocated blocks but marks all memory as free. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.usage': '**`mem.usage(a Arena) -> i64`** — Return the number of bytes currently used in the arena. Unsafe: requires an unsafe block or an unsafe function.',
+  'mem.zero': '**`mem.zero(ptr ^T, n i64)`** — Zero n bytes starting at ptr. Unsafe: requires an unsafe block or an unsafe function.',
   // @net
   'net.accept': '**`net.accept(listener Listener) -> (Socket, Error)`** — Blocks until an incoming connection arrives on listener, then returns a socket for it. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.close': '**`net.close(sock Socket)`** — Closes a socket or listener. No return value.',
   'net.connect': '**`net.connect(host string, port i64) -> (Socket, Error)`** — Opens a TCP connection to host on port. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.listen': '**`net.listen(port i64, host string = "0.0.0.0") -> (Listener, Error)`** — Opens a TCP listener on port, bound to host. Pass a host to bind a specific interface, e.g. listen(8080, "127.0.0.1"); the default "0.0.0.0" binds all interfaces. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.receive': '**`net.receive(sock Socket, max_bytes i64) -> (string, Error)`** — Reads up to max_bytes from sock and returns them as a string. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
-  'net.receive_line': '**`net.receive_line(sock Socket, max_bytes i64) -> (string, Error)`** — Reads up to and including the next newline from sock and returns the line without its trailing `\n` or `\r\n`. Bytes read past the newline stay on the socket and are returned first by the next receive or receive_line. A line longer than max_bytes returns an OutOfRange Error; a connection that closes before any byte arrives returns a Closed Error, while one that closes after a partial line returns that partial line. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
+  'net.receive_line': '**`net.receive_line(sock Socket, max_bytes i64) -> (string, Error)`** — Reads up to and including the next newline from sock and returns the line without its trailing `\\n` or `\\r\\n`. Bytes read past the newline stay on the socket and are returned first by the next receive or receive_line. A line longer than max_bytes returns an OutOfRange Error; a connection that closes before any byte arrives returns a Closed Error, while one that closes after a partial line returns that partial line. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.resolve': '**`net.resolve(hostname string) -> (string, Error)`** — Resolves hostname to an IP address string. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
-  'net.send': '**`net.send(sock Socket, data string) -> (i64, Error)`** — Sends data over sock and returns the number of bytes written. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
+  'net.send': '**`net.send(sock Socket, data string) -> (i64, Error)`** — Sends all of data over sock and returns the number of bytes written, which is `len(data)` on success. On failure it returns the bytes written so far and an Error. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.set_timeout': '**`net.set_timeout(sock Socket, ms i64)`** — Sets the send and receive timeout on sock in milliseconds. No return value.',
-
   // @os
   'os.Platform': '**`os.Platform`** — Host operating system. Reachable as os.MAC_OS or Platform.MAC_OS (same value). Underlying values: MAC_OS 0, LINUX 1, WINDOWS 2, OTHER 3.\n\nMembers: `MAC_OS`, `LINUX`, `WINDOWS`, `OTHER`',
   'os.arch': '**`os.arch() -> string`** — Returns the CPU architecture of the current machine, such as "arm64" or "x86_64".',
@@ -443,7 +420,9 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'os.current_os': '**`os.current_os() -> Platform`** — Returns the current operating system as a Platform enum value.',
   'os.disk_usage': '**`os.disk_usage(path string) -> (i64, i64, Error)`** — Returns (used, total) in bytes of the filesystem that contains path. A path that does not exist returns (0, 0) and an Error with code NotFound. Returns an Error with code Unsupported on a platform without the counters (Windows).',
   'os.environ': '**`os.environ() -> [string]`** — Returns every environment variable of the current process as an array of "KEY=VALUE" strings.',
-  'os.exec': '**`os.exec(cmd string, args [string]) -> (i64, string, string, bool)`** — Executes the command cmd with the given args. Returns (exit_code, stdout, stderr, ok). ok is false if the process could not be launched.',
+  'os.exec': '**`os.exec(cmd string, args [string]) -> (ExecResult, Error)`** — Executes the command cmd with the given args and captures its output. The Error is non-nil only when the process could not be launched; a process that runs and exits non-zero returns a nil Error and its exit_code.',
+  'os.executable_path': '**`os.executable_path() -> (string, Error)`** — Returns the absolute path of the running binary. Returns an Error with code IoFailure if the path cannot be determined and Unsupported on a platform without a way to ask for it.',
+  'os.find_executable': '**`os.find_executable(name string) -> (string, bool)`** — Returns the full path of the first executable regular file called name on PATH, and whether one was found. A name containing a path separator is checked directly instead of searched. On Windows the PATHEXT extensions are tried and PATH is split on ";".',
   'os.get_env': '**`os.get_env(name string) -> string`** — Returns the value of the environment variable name. Returns an empty string if the variable is not set.',
   'os.home_dir': '**`os.home_dir() -> string`** — Returns the current user\'s home directory. Reads $HOME on Unix and %USERPROFILE% on Windows.',
   'os.hostname': '**`os.hostname() -> string`** — Returns the hostname of the machine.',
@@ -454,23 +433,30 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'os.pid': '**`os.pid() -> i64`** — Returns the process ID of the current process.',
   'os.set_env': '**`os.set_env(name string, value string)`** — Sets the environment variable name to value for the current process.',
   'os.unset_env': '**`os.unset_env(name string)`** — Removes the environment variable with the given name from the current process. Does nothing if the variable is not set.',
-
+  // @path
+  'path.absolute_path': '**`path.absolute_path(p string) -> (string, Error)`** — Returns p as a normalized absolute path, resolving a relative p against the current working directory. Returns an Error when the working directory cannot be read or when p is drive-relative (C:file).',
+  'path.file_extension': '**`path.file_extension(p string) -> string`** — Returns the suffix of the final path element starting at its last dot, including the dot. Returns an empty string when the final element has no dot.',
+  'path.is_absolute': '**`path.is_absolute(p string) -> bool`** — True when p starts with a separator, a UNC prefix, or a drive letter followed by a separator (such as C: then a slash). A drive letter alone (C: or C:file) is not absolute.',
+  'path.join_parts': '**`path.join_parts(parts [string]) -> string`** — Joins the non-empty parts with the platform separator and normalizes the result. Returns an empty string when every part is empty.',
+  'path.normalize_path': '**`path.normalize_path(p string) -> string`** — Returns the shortest equivalent path: collapses repeated separators, removes "." elements, resolves ".." elements lexically, and converts separators to the platform separator. An empty result becomes ".".',
+  'path.relative_path': '**`path.relative_path(base string, target string) -> (string, Error)`** — Returns a path that, joined to base, leads to target. The work is purely lexical. Returns an Error when only one of the paths is absolute, when they have different drive or UNC roots, or when base contains ".." elements that cannot be resolved.',
+  'path.split_dir_file': '**`path.split_dir_file(p string) -> (string, string)`** — Splits p after its final separator into a directory (including the trailing separator) and a file name. The directory is empty when p has no separator. Joining the two results gives p back.',
+  'path.to_forward_slashes': '**`path.to_forward_slashes(p string) -> string`** — Returns p with every backslash replaced by a forward slash, on every platform.',
   // @random
   'random.choice': '**`random.choice(arr [T]) -> T`** — Returns a random element from the array.',
   'random.rand_bool': '**`random.rand_bool() -> bool`** — Returns a random boolean value.',
   'random.rand_bytes': '**`random.rand_bytes(n i64) -> [u8]`** — Returns n random bytes drawn from the module\'s non-cryptographic RNG, so random.seed makes it reproducible. An n of 0 returns an empty array; panics if n is negative. Not suitable for secrets; use crypto.random_hex instead.',
-  'random.rand_char': '**`random.rand_char() -> char  |  rand_char(min char, max char) -> char`** — Returns a random character. With no arguments returns a random printable ASCII character. With two arguments returns a character from min up to but not including max.',
-  'random.rand_f64': '**`random.rand_f64() -> f64  |  rand_f64(min f64, max f64) -> f64`** — Returns a random f64. With no arguments returns a value from 0.0 up to but not including 1.0. With two arguments returns a value from min up to but not including max.',
-  'random.rand_i64': '**`random.rand_i64(min i64, max i64) -> i64`** — Returns a random integer from min up to but not including max.',
+  'random.rand_char': '**`random.rand_char() -> char  |  rand_char(min char, max char) -> char`** — Returns a random character. With no arguments returns a random printable ASCII character. With two arguments returns a character from min up to but not including max; panics if min is not less than max.',
+  'random.rand_f64': '**`random.rand_f64() -> f64  |  rand_f64(min f64, max f64) -> f64`** — Returns a random f64. With no arguments returns a value from 0.0 up to but not including 1.0. With two arguments returns a value from min up to but not including max; panics if min is not less than max.',
+  'random.rand_i64': '**`random.rand_i64(min i64, max i64) -> i64`** — Returns a random integer from min up to but not including max. Panics if min is not less than max.',
   'random.rand_string': '**`random.rand_string(length i64, alphabet string) -> string`** — Returns a string of length characters, each drawn uniformly at random from alphabet using the module\'s non-cryptographic RNG. A length of 0 returns "". Panics if alphabet is empty and length is greater than 0.',
   'random.rand_u8': '**`random.rand_u8() -> u8`** — Returns a random u8 value from 0 to 255 inclusive.',
   'random.roll_dice': '**`random.roll_dice(count i64, sides i64) -> i64`** — Returns the sum of count rolls of a sides-sided die, each roll uniform in 1 through sides. roll_dice(2, 6) is 2d6 and returns 2 to 12. Panics if count or sides is less than 1.',
   'random.sample': '**`random.sample(arr [T], n i64) -> [T]`** — Returns n unique randomly selected elements from the array.',
   'random.seed': '**`random.seed(value i64)`** — Seeds the random number generator with the given value. Useful for reproducible sequences.',
   'random.shuffle': '**`random.shuffle(arr [T]) -> [T]`** — Returns a shuffled copy of the array. The original is not modified.',
-
   // @regex
-  'regex.count': '**`regex.count(pattern string, text string) -> i64`** — Return the number of non-overlapping matches of pattern in text. An invalid pattern returns 0.',
+  'regex.count': '**`regex.count(pattern string, text string) -> i64`** — Return the number of non-overlapping matches of pattern in text. Returns (i64, Error); an invalid pattern returns 0 and a non-nil Error.',
   'regex.escape': '**`regex.escape(s string) -> string`** — Backslash-escape every character that is special in a POSIX extended regex, so s matches literally when spliced into a pattern.',
   'regex.find': '**`regex.find(pattern string, text string) -> (string, Error)`** — Return the first match of pattern in text, or an empty string if none. Always use destructuring (`mut m, err = ...` or `mut m, _ = ...`) — single-variable assignment is a compile error. An invalid pattern yields a non-nil error and, with `_`, an empty string.',
   'regex.find_all': '**`regex.find_all(pattern string, text string) -> ([string], Error)`** — Return all non-overlapping matches of pattern in text. Always use destructuring (`mut matches, err = ...` or `mut matches, _ = ...`) — single-variable assignment is a compile error. An invalid pattern yields a non-nil error and, with `_`, an empty array.',
@@ -480,7 +466,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'regex.is_valid': '**`regex.is_valid(pattern string) -> bool`** — Check whether a regex pattern is syntactically valid.',
   'regex.replace': '**`regex.replace(pattern string, text string, replacement string) -> (string, Error)`** — Replace all matches of pattern in text with replacement. Always use destructuring (`mut result, err = ...` or `mut result, _ = ...`) — single-variable assignment is a compile error. An invalid pattern yields a non-nil error and, with `_`, the original text.',
   'regex.split': '**`regex.split(pattern string, text string) -> ([string], Error)`** — Split text on all matches of pattern. Always use destructuring (`mut parts, err = ...` or `mut parts, _ = ...`) — single-variable assignment is a compile error. An invalid pattern yields a non-nil error and, with `_`, a single-element array holding the original text.',
-
   // @runtime
   'runtime.alloc_count': '**`runtime.alloc_count() -> i64`** — Return the total number of arena allocations across the default and heap arenas since program start.',
   'runtime.arena_blocks': '**`runtime.arena_blocks() -> i64`** — Return the number of blocks chained in the default arena.',
@@ -488,13 +473,14 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'runtime.arena_usage': '**`runtime.arena_usage() -> i64`** — Return the number of bytes currently used in the default (scope) arena.',
   'runtime.call_depth': '**`runtime.call_depth() -> i64`** — Return the current call stack depth.',
   'runtime.call_limit': '**`runtime.call_limit() -> i64`** — Return the maximum allowed call stack depth.',
+  'runtime.caller_name': '**`runtime.caller_name() -> string`** — Return the name of the function that called the currently executing function, or the empty string from main.',
+  'runtime.function_name': '**`runtime.function_name() -> string`** — Return the name of the currently executing function. A struct function reports as Type.func. Resolved at compile time.',
   'runtime.heap_blocks': '**`runtime.heap_blocks() -> i64`** — Return the number of blocks chained in the heap arena.',
   'runtime.heap_usage': '**`runtime.heap_usage() -> i64`** — Return the number of bytes currently used in the heap arena (backs new()).',
   'runtime.peak_usage': '**`runtime.peak_usage() -> i64`** — Return the high-water mark of combined default and heap arena bytes committed at any point during execution.',
   'runtime.total_usage': '**`runtime.total_usage() -> i64`** — Return the combined bytes used across the default and heap arenas.',
   'runtime.uptime': '**`runtime.uptime() -> f64`** — Return the number of seconds elapsed since the program started.',
   'runtime.version': '**`runtime.version() -> string`** — Return the Grayscale version that compiled this binary.',
-
   // @server
   'server.HttpRequest': '**`server.HttpRequest`** — The request object passed to every handler function.\n\nMembers: `method string`, `path string`, `body string`, `query map[string:string]`, `headers map[string:string]`, `params map[string:string]`',
   'server.HttpResponse': '**`server.HttpResponse`** — The response object returned by handler functions. It is the same type the http module returns, so a handler can return an http.get() response unchanged. Build one with server.text(), server.json(), server.html(), or server.redirect(); the content type is the "Content-Type" entry in headers. Every header is sent with the response.\n\nMembers: `status i64`, `body string`, `headers map[string:string]`',
@@ -505,10 +491,9 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'server.cors': '**`server.cors(router Router, origin string)`** — Enables CORS on the router for the given origin. Use "*" to allow all origins.',
   'server.html': '**`server.html(status i64, body string) -> HttpResponse`** — Returns an HttpResponse with the given status code and body, and headers["Content-Type"] set to "text/html".',
   'server.json': '**`server.json(status i64, body string) -> HttpResponse`** — Returns an HttpResponse with the given status code and body, and headers["Content-Type"] set to "application/json".',
-  'server.listen': '**`server.listen(router Router, port i64, [host string])`** — Starts the HTTP server on the given port, bound to host. host defaults to "0.0.0.0" (all interfaces). Blocks until the process is killed.',
+  'server.listen': '**`server.listen(router Router, port i64, host string = "0.0.0.0")`** — Starts the HTTP server on the given port, bound to host. host defaults to "0.0.0.0" (all interfaces). Blocks until the process is killed.',
   'server.redirect': '**`server.redirect(status i64, url string) -> HttpResponse`** — Returns an HttpResponse that redirects to url: an empty body and headers["Location"] set to url. Use 301 for permanent or 302 for temporary redirects.',
   'server.text': '**`server.text(status i64, body string) -> HttpResponse`** — Returns an HttpResponse with the given status code and body, and headers["Content-Type"] set to "text/plain".',
-
   // @sqlite
   'sqlite.close': '**`sqlite.close(db Database)`** — Closes the database connection. No return value.',
   'sqlite.exec': '**`sqlite.exec(db Database, sql string) -> (bool, Error)`** — Executes a SQL statement that does not return rows (CREATE, INSERT, UPDATE, DELETE, etc.). Returns true on success. Always use destructuring — single-variable assignment is a compile error. SQL strings are passed as-is; use exec_params for parameterized queries.',
@@ -516,7 +501,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'sqlite.open': '**`sqlite.open(path string) -> (Database, Error)`** — Opens or creates a SQLite database file at path. Returns a database handle used for all subsequent operations. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'sqlite.query': '**`sqlite.query(db Database, sql string) -> ([map[string:string]], Error)`** — Executes a SQL SELECT statement and returns the result rows. Each row is a map of column name to string value. Always use destructuring — single-variable assignment is a compile error. SQL strings are passed as-is; use query_params for parameterized queries.',
   'sqlite.query_params': '**`sqlite.query_params(db Database, sql string, params [string]) -> ([map[string:string]], Error)`** — Executes a parameterized SQL SELECT statement and returns the result rows. Use ? placeholders in the SQL string and pass values in the params array. Prevents SQL injection by binding parameters safely. Always use destructuring — single-variable assignment is a compile error.',
-
   // @strconv
   'strconv.BASE_10': '**`strconv.BASE_10`** = `10` — Base constant for decimal (the default for to_i64()/to_u64()). Pass as the base argument to to_i64(), to_u64(), format_i64(), or format_u64().',
   'strconv.BASE_16': '**`strconv.BASE_16`** = `16` — Base constant for hexadecimal. Pass as the base argument to to_i64(), to_u64(), format_i64(), or format_u64().',
@@ -537,7 +521,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strconv.to_i64': '**`strconv.to_i64(s string, base i64 = 10) -> (i64, Error)`** — Parses s as a signed integer in the given base (2–36). Fallible: the result must be destructured (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile-time error (E3089). On invalid input err is non-nil; with `_`, v is 0. Leading/trailing whitespace is not tolerated.',
   'strconv.to_u64': '**`strconv.to_u64(s string, base i64 = 10) -> (u64, Error)`** — Parses s as an unsigned integer in the given base (2–36). Rejects strings with a leading minus sign. Fallible: the result must be destructured (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile-time error (E3089). On invalid input err is non-nil; with `_`, v is 0.',
   'strconv.unquote': '**`strconv.unquote(s string) -> (string, Error)`** — Removes one layer of surrounding double quotes from s and interprets the same escape sequences the lexer accepts in string literals, including two-digit hex escapes. Fallible: malformed input (unbalanced quotes, a trailing backslash, or an unknown escape) returns an Error, so the result must be destructured. The inverse of quote.',
-
   // @strings
   'strings.Builder': '**`strings.Builder`** — A growable byte accumulator for assembling a string from many pieces without the O(n^2) copying of repeated `+=`. Arena-managed like any struct: it goes out of scope with its enclosing arena, with no manual free. The buffer grows by doubling, so N appends totalling M bytes cost amortized O(M). Create one with strings.builder(), append with the builder_append* functions, and finalize once with strings.build(). Must be declared mut; a function that appends to a caller\'s builder takes it as &b Builder.',
   'strings.append_char': '**`strings.append_char(s string, c char) -> string`** — Returns a new string with c (UTF-8 encoded) added at the end. s is unchanged.',
@@ -549,7 +532,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strings.builder_append_i64': '**`strings.builder_append_i64(&b Builder, n i64) -> void`** — Appends the decimal text of n to the builder (e.g. -42 appends "-42").',
   'strings.builder_append_line': '**`strings.builder_append_line(&b Builder, s string) -> void`** — Appends s followed by a newline character.',
   'strings.builder_clear': '**`strings.builder_clear(&b Builder) -> void`** — Resets the builder\'s length to zero while keeping its allocated capacity, so it can be reused without reallocating.',
-  'strings.builder_len': '**`strings.builder_len(b Builder) -> i64`** — Returns the number of bytes accumulated in the builder so far.',
   'strings.builder_reserve': '**`strings.builder_reserve(&b Builder, n i64) -> void`** — Grows the builder\'s buffer so it can hold at least n bytes without reallocating. Optional; use it when the final size is known ahead of time. A negative n is ignored.',
   'strings.capitalize': '**`strings.capitalize(s string) -> string`** — Returns a copy of s with the first character uppercased and the rest left untouched. An empty string is returned unchanged.',
   'strings.char_at': '**`strings.char_at(s string, index i64) -> char`** — Returns the character at the given byte index. Panics if the index is out of bounds.',
@@ -561,24 +543,18 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strings.equal_fold': '**`strings.equal_fold(a string, b string) -> bool`** — Returns true if a and b are equal ignoring ASCII letter case.',
   'strings.from_chars': '**`strings.from_chars(characters [char]) -> string`** — Converts an array of characters back into a string.',
   'strings.index_of': '**`strings.index_of(s string, sub string) -> i64`** — Returns the byte index of the first occurrence of sub in s, or -1 if not found.',
-  'strings.insert_char_at': '**`strings.insert_char_at(s string, index i64, c char) -> string`** — Returns a new string with c (UTF-8 encoded) inserted at byte index. An index equal to the length appends; panics if the index is negative or greater than the length. s is unchanged.',
-  'strings.is_alnum': '**`strings.is_alnum(c char) -> bool`** — Returns true if c is an ASCII letter or decimal digit.',
-  'strings.is_alpha': '**`strings.is_alpha(c char) -> bool`** — Returns true if c is an ASCII letter (a-z or A-Z).',
-  'strings.is_digit': '**`strings.is_digit(c char) -> bool`** — Returns true if c is a decimal digit (0-9).',
+  'strings.insert_char_at': '**`strings.insert_char_at(s string, index i64, c char) -> string`** — Returns a new string with c (UTF-8 encoded) inserted at byte index. An index inside a character snaps back to the start of that character. An index equal to the length appends; panics if the index is negative or greater than the length. s is unchanged.',
   'strings.is_empty': '**`strings.is_empty(s string) -> bool`** — Returns true if s has zero length. Does not trim whitespace first.',
-  'strings.is_lower': '**`strings.is_lower(c char) -> bool`** — Returns true if c is a lowercase ASCII letter (a-z).',
-  'strings.is_upper': '**`strings.is_upper(c char) -> bool`** — Returns true if c is an uppercase ASCII letter (A-Z).',
-  'strings.is_whitespace': '**`strings.is_whitespace(c char) -> bool`** — Returns true if c is a whitespace character (space, tab, newline, carriage return).',
   'strings.join': '**`strings.join(arr [string], sep string) -> string`** — Joins the elements of arr into a single string with sep between each element.',
   'strings.last_index_of': '**`strings.last_index_of(s string, sub string) -> i64`** — Returns the byte index of the last occurrence of sub in s, or -1 if not found.',
   'strings.prepend_char': '**`strings.prepend_char(s string, c char) -> string`** — Returns a new string with c (UTF-8 encoded) added at the front. s is unchanged.',
-  'strings.remove_at': '**`strings.remove_at(s string, index i64) -> string`** — Returns a new string with the byte at byte index removed. Panics if the index is out of bounds. s is unchanged.',
+  'strings.remove_at': '**`strings.remove_at(s string, index i64) -> string`** — Returns a new string with the character at byte index removed. An index inside a character snaps back to the start of that character. Panics if the index is out of bounds. s is unchanged.',
   'strings.remove_prefix': '**`strings.remove_prefix(s string, prefix string) -> string`** — Returns s with the given prefix removed. If s does not start with prefix, it is returned unchanged.',
   'strings.remove_suffix': '**`strings.remove_suffix(s string, suffix string) -> string`** — Returns s with the given suffix removed. If s does not end with suffix, it is returned unchanged.',
   'strings.repeat': '**`strings.repeat(s string, count i64) -> string`** — Returns a string consisting of count copies of s concatenated together.',
   'strings.replace': '**`strings.replace(s string, old string, new string) -> string`** — Returns a copy of s with all occurrences of old replaced by new.',
   'strings.reverse': '**`strings.reverse(s string) -> string`** — Returns a copy of s with the bytes in reverse order.',
-  'strings.set_char_at': '**`strings.set_char_at(s string, index i64, c char) -> string`** — Returns a new string with the byte at byte index replaced by c (UTF-8 encoded). Panics if the index is out of bounds. s is unchanged.',
+  'strings.set_char_at': '**`strings.set_char_at(s string, index i64, c char) -> string`** — Returns a new string with the character at byte index replaced by c (UTF-8 encoded). An index inside a character snaps back to the start of that character. Panics if the index is out of bounds. s is unchanged.',
   'strings.slice': '**`strings.slice(s string, start i64, end i64) -> string`** — Returns the substring of s from byte index start (inclusive) to end (exclusive).',
   'strings.split': '**`strings.split(s string, sep string) -> [string]`** — Splits s around each occurrence of sep and returns a string array.',
   'strings.split_n': '**`strings.split_n(s string, sep string, n i64) -> [string]`** — Splits s on sep into at most n pieces; the final piece holds the unsplit remainder. Returns an empty array when n is zero or negative.',
@@ -596,26 +572,22 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'strings.trim': '**`strings.trim(s string) -> string`** — Returns a copy of s with leading and trailing whitespace removed.',
   'strings.trim_left': '**`strings.trim_left(s string) -> string`** — Returns a copy of s with leading whitespace removed.',
   'strings.trim_right': '**`strings.trim_right(s string) -> string`** — Returns a copy of s with trailing whitespace removed.',
-  'strings.truncate': '**`strings.truncate(s string, max i64, ellipsis string) -> string`** — Returns s unchanged when its byte length is at most max. Otherwise returns the first (max - len(ellipsis)) bytes of s followed by ellipsis, for a total byte length of exactly max. Panics if max is smaller than the byte length of ellipsis.',
-
+  'strings.truncate': '**`strings.truncate(s string, max i64, ellipsis string) -> string`** — Returns s unchanged when its byte length is at most max. Otherwise returns the first (max - len(ellipsis)) bytes of s followed by ellipsis, for a total byte length of at most max. The cut snaps back to the start of the character it lands in, so the result is always valid UTF-8. Panics if max is smaller than the byte length of ellipsis.',
   // @sync
   'sync.destroy': '**`sync.destroy(m Mutex)`** — Destroy a mutex and free its resources.',
   'sync.lock': '**`sync.lock(m Mutex)`** — Acquire a mutex. Blocks until the lock is available.',
   'sync.mutex': '**`sync.mutex() -> Mutex`** — Create a new mutex.',
   'sync.try_lock': '**`sync.try_lock(m Mutex) -> bool`** — Try to acquire a mutex without blocking. Returns true if acquired.',
   'sync.unlock': '**`sync.unlock(m Mutex)`** — Release a mutex.',
-
   // @threads
-  'threads.detach': '**`threads.detach(t Thread)`** — Release ownership; the thread runs independently. After detach the handle must not be joined or queried.',
-  'threads.get_id': '**`threads.get_id() -> i64`** — Get the current thread\'s ID.',
-  'threads.is_alive': '**`threads.is_alive(t Thread) -> bool`** — True while the thread\'s body has not returned. Not valid after detach or join.',
-  'threads.join': '**`threads.join(t Thread)`** — Wait for a thread to finish. Frees the underlying handle.',
-  'threads.sleep': '**`threads.sleep(ms i64)`** — Sleep the current thread for ms milliseconds.',
-  'threads.spawn': '**`threads.spawn(fn func()) -> Thread`** — Spawn a new thread running fn. To pass an i64 argument to fn, use spawn_arg.',
-  'threads.spawn_arg': '**`threads.spawn_arg(fn func(i64), arg i64) -> Thread`** — Spawn a new thread running fn, passing arg to it as its single i64 parameter.',
-  'threads.thread_count': '**`threads.thread_count() -> i64`** — Number of live threads spawned through this module. Excludes the main thread and non-Grayscale threads.',
-  'threads.yield': '**`threads.yield()`** — Hint the scheduler to run another runnable thread.',
-
+  'threads.detach': '**`threads.detach(t Thread)`** — Release ownership; the thread runs independently. After detach the handle must not be joined or queried. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.get_id': '**`threads.get_id() -> i64`** — Get the current thread\'s ID. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.is_alive': '**`threads.is_alive(t Thread) -> bool`** — True while the thread\'s body has not returned. Not valid after detach or join. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.join': '**`threads.join(t Thread)`** — Wait for a thread to finish. Frees the underlying handle. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.spawn': '**`threads.spawn(fn func()) -> Thread`** — Spawn a new thread running fn. To pass an i64 argument to fn, use spawn_arg. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.spawn_arg': '**`threads.spawn_arg(fn func(i64), arg i64) -> Thread`** — Spawn a new thread running fn, passing arg to it as its single i64 parameter. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.thread_count': '**`threads.thread_count() -> i64`** — Number of live threads spawned through this module. Excludes the main thread and non-Grayscale threads. Unsafe: requires an unsafe block or an unsafe function.',
+  'threads.yield': '**`threads.yield()`** — Hint the scheduler to run another runnable thread. Unsafe: requires an unsafe block or an unsafe function.',
   // @time
   'time.add_days': '**`time.add_days(timestamp i64, n i64) -> i64`** — Returns timestamp shifted by n days (n may be negative). Pure integer arithmetic on the Unix value; no calendar or DST logic.',
   'time.add_hours': '**`time.add_hours(timestamp i64, n i64) -> i64`** — Returns timestamp shifted by n hours (n may be negative).',
@@ -654,13 +626,11 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'time.weekday': '**`time.weekday(timestamp i64) -> i64`** — Returns the day of the week from a Unix timestamp. 0 = Sunday, 1 = Monday, ..., 6 = Saturday.',
   'time.weekday_name': '**`time.weekday_name(timestamp i64) -> string`** — Returns the English weekday name for timestamp ("Sunday" through "Saturday"), consistent with weekday() numbering (0 = Sunday).',
   'time.year': '**`time.year(timestamp i64) -> i64`** — Returns the year from a Unix timestamp.',
-
   // @uuid
   'uuid.NIL_UUID': '**`uuid.NIL_UUID`** = `00000000-0000-0000-0000-000000000000` — The all-zero UUID.',
   'uuid.from_bytes': '**`uuid.from_bytes(bytes [u8]) -> UUID`** — Builds a UUID from 16 raw bytes in big-endian order. The bytes are used verbatim — no version or variant bits are forced. Panics if fewer than 16 bytes are given.',
   'uuid.generate': '**`uuid.generate() -> UUID`** — Generates a random RFC 4122 version 4 UUID as a 36-character lowercase hyphenated value.',
   'uuid.generate_compact': '**`uuid.generate_compact(id UUID) -> string`** — Returns the UUID with its hyphens stripped, as a 32-character hex string.',
-  'uuid.generate_random': '**`uuid.generate_random() -> UUID`** — Generates an RFC 4122 version 4 (random) UUID, 36-character lowercase hyphenated. The version nibble is 4.',
   'uuid.generate_time_ordered': '**`uuid.generate_time_ordered() -> UUID`** — Generates an RFC 9562 version 7 (time-ordered) UUID, 36-character lowercase hyphenated. Values sort by creation time.',
   'uuid.generate_v5': '**`uuid.generate_v5(namespace UUID, name string) -> UUID`** — Generates a deterministic RFC 4122 version 5 (name-based, SHA-1) UUID. The same namespace and name always produce the same UUID.',
   'uuid.is_valid': '**`uuid.is_valid(s string) -> bool`** — Reports whether s is a well-formed 36-character hyphenated UUID string.',
@@ -670,10 +640,6 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'uuid.to_string': '**`uuid.to_string(id UUID) -> string`** — Returns the UUID\'s canonical 36-character hyphenated string representation.',
   'uuid.version': '**`uuid.version(id UUID) -> i64`** — Returns the UUID\'s version number from its version nibble (1 through 8 for the RFC-defined versions). The nil UUID reports 0.',
 };
-
-// ---------------------------------------------------------------------------
-// Hover documentation
-// ---------------------------------------------------------------------------
 
 export const DOCS: Record<string, string> = {
   // --- Keywords ---
@@ -705,6 +671,8 @@ export const DOCS: Record<string, string> = {
   'use': '**`use`** \u2014 Used with `import and use` to import a module and bring its members into scope in one statement.\n\n```gray\nimport and use @strings\n\ndo main() {\n    println(to_upper("hello"))   // unqualified, no separate `using`\n}\n```\n\nEquivalent to `import @strings` followed by `using strings`.',
   'new': '**`new`** — Allocates a zero-initialized struct on the arena and returns a pointer.\n\n```gray\nmut p ^Point = new(Point)\n```',
   'alias': '**`alias`** \u2014 Creates an interchangeable name for an existing type.\n\n```gray\nalias Meters = f64\nalias Vec2 = Point\nalias Names = [string]\nalias Lookup = map[string:i64]\n```\n\n**Rules:**\n- File-scope only \u2014 cannot be declared inside a function.\n- Public by default; prefix with `private` to restrict to the declaring file.\n- Erased at compile time \u2014 `type_of()` returns the underlying type name.\n- Transitive: `alias A = i64` then `alias B = A` resolves `B` to `i64`.\n- Can alias primitives, structs, enums, arrays, maps, and pointers.\n- Cannot alias module-qualified types (`mod.Type`) or the wildcard type (`?`).',
+  'distinct': '**`distinct`** — Prefixes an `alias` to declare a type with the same representation as its target that the compiler treats as a different type.\n\n```gray\ndistinct alias UserId = i64\ndistinct alias OrderId = i64\n\ndo delete_user(id UserId) { }\n\ndo main() {\n    mut user UserId = 5\n    mut order OrderId = 7\n    delete_user(user)                  // ok\n    delete_user(order)                 // error: expected UserId, got OrderId\n    delete_user(cast(order, UserId))   // explicit conversion, ok\n}\n```\n\nOnly primitive targets (`i8`..`i256`, `u8`..`u256`, `f32`, `f64`, `bool`, `char`, `string`, or a plain alias of one) can be made distinct.',
+  'generic': '**`generic`** — Declares a type parameter. A `generic` parameter is an ordinary function parameter whose argument is a type; its name can be used as a type in the parameters that follow it, in the return type, and in the body.\n\n```gray\ndo identity(T generic, x T) -> T {\n    return x\n}\n\ndo make(T generic) -> ^T {\n    return new(T)\n}\n\nmut n = identity(i64, 42)   // T is i64, returns i64\nmut p = make(Point)         // allocates a Point, returns ^Point\n```\n\nThe type is always passed explicitly at the call site; it is never inferred from the value arguments. `generic` is valid only as the type of a function parameter.',
   'private': '**`private`** — Restricts visibility of a function or declaration to the current file.',
   'cast': '**`cast`** — Explicit type conversion.\n\n```gray\nmut n i32 = cast(myInt, i32)\n```',
   'in': '**`in`** — Tests membership in a collection.\n\n```gray\nif 5 in numbers { println("found") }\n```',
@@ -716,6 +684,8 @@ export const DOCS: Record<string, string> = {
   'or_panic': '**`or_panic`** — Aborts instead of propagating. Follows a single-variable declaration whose call returns `(T, Error)`. When the call returns a non-nil error, the program panics with the error\'s message, or with the string written after `or_panic`. Legal in `main()` and in functions that return no `Error`.\n\n```gray\nmut port = lookup("port") or_panic\nmut n = strconv.to_i64(text) or_panic "config must hold a port number"\n```',
   'or_default': '**`or_default`** — Substitutes fallback values when the call fails. On success the call\'s values are used and the fallbacks are not evaluated; on failure the error is discarded and the fallbacks are used, one per non-error value the call returns, in return order. Needs a binding, and is legal in `main()` and in functions that return no `Error`.\n\n```gray\nmut port = strconv.to_i64(text) or_default 8080\nmut low, high = bounds(text) or_default 0, 100\n```',
   'unsafe': '**`unsafe`** — Marks code that uses `raw()`, the `mem` and `threads` modules, or `extern` calls; each is **E5065** outside an `unsafe` block or unsafe function.\n\n```gray\nunsafe {\n    counter^ += 1\n}\n\nprivate unsafe do bump(counter ^i64) {\n    counter^ += 1\n}\n```\n\nAn `unsafe` block is an ordinary scope. `unsafe do` marks the whole function body; with `private`, the order is `private unsafe do`. A function that opens its own `unsafe` block does not force its callers to.',
+  'from_c_string': '**`from_c_string(ptr ^u8) -> string`** — Converts a C `char*` return value to a Grayscale string (C interop).',
+  'to_c_string': '**`to_c_string(s string) -> ^u8`** — Returns a NUL-terminated copy of a string as a raw C pointer that lives for the rest of the program, for storing in an extern struct field or a `^u8` variable (C interop).',
   'ensure': '**`ensure`** — Deferred cleanup. Runs when the surrounding function exits. `defer` is an alias.\n\n```gray\nensure cleanup()\n```',
   'defer': '**`defer`** — Alias for `ensure`. Runs the given call when the surrounding function exits. Mixing `defer` and `ensure` in one file is `E2088`.',
   'true': '**`true`** — Boolean literal representing the true value.',
@@ -774,7 +744,6 @@ export const DOCS: Record<string, string> = {
   'system': '**`system(command string) -> i64`** \u2014 Runs a shell command and returns its exit code.\n\nReturns `-1` if the command was killed by a signal.\n\n```gray\nmut code i64 = system("ls -la")\n```',
   'to_char': '**`to_char(s string, index i64) -> char`** — Returns the Unicode codepoint at character position `index`.',
   'char_count': '**`char_count(s string) -> i64`** — Returns the number of Unicode characters (not bytes) in a string.',
-  'c_string': '**`c_string(ptr ^u8) -> string`** — Converts a C `char*` pointer to a Grayscale string (C interop).',
   'embed': '**`embed(path string) -> string`** — Reads a file at compile time and bakes its contents into the binary.',
   'sleep_s': '**`sleep_s(seconds i64)`** — Sleeps for the given number of seconds.',
   'sleep_ms': '**`sleep_ms(ms i64)`** — Sleeps for the given number of milliseconds.',
@@ -784,7 +753,6 @@ export const DOCS: Record<string, string> = {
   'extern': '**`extern`** \u2014 C interop. Import a C header with `extern import`, then call into it through the `extern.` prefix:\n\n```gray\nextern import "stdio.h"           // system header \u2192 #include <stdio.h>\nextern import "./mylib.h"         // local header  \u2192 #include "./mylib.h"\nextern import "stdio.h", "stdlib.h"\n\ndo main() {\n    extern.puts("hello from C")\n    extern.printf("value: %d\\n", 42)\n    mut eof i64 = extern.EOF        // constants and macros too\n}\n```\n\nThe `extern.` prefix is required at every C call site. A C call result has no Grayscale type of its own: assign it to a type-annotated variable, pass it to another `extern.` call, or convert it with `c_string()`.\n\n```gray\nmut home string = c_string(extern.getenv("HOME"))\n```\n\n**Cannot be passed to C:** `i128`, `i256`, `u128`, `u256`, arrays, maps, and Grayscale structs.\n\nThe module name `extern` is reserved \u2014 a local `extern.gray` must be imported under an alias.',
 
   // --- Wildcard types ---
-  '?': '**`?`** \u2014 Wildcard type. A placeholder that enables generic-style functions.\n\n```gray\ndo identity(x ?) -> ? {\n    return x\n}\n\nmut a = identity(42)        // ? binds to i64\nmut b = identity("hello")   // ? binds to string\n```\n\nAll `?` placeholders in one signature bind to the **same** concrete type, inferred from the first `?` argument:\n\n```gray\ndo pick_first(a ?, b ?) -> ? { return a }\n\npick_first(1, 2)         // OK\npick_first(1, "hello")   // Error: conflicting bindings for ?\n```\n\nWorks with composite types: `do first(arr [?]) -> ?`.\n\n**`?` is only valid in function parameter and return types.** It is rejected in variable declarations, struct fields, `new(?)`, and named return positions. A `?` return requires at least one `?` parameter to provide the binding.',
   '<?>': '**`<?>`** \u2014 Type parameter. Lets a function parameter accept a struct **type name** rather than a value.\n\n```gray\nconst Point struct {\n    x i64\n    y i64\n}\n\ndo make(T <?>) -> ^? {\n    return new(T)\n}\n\nmut p = make(Point)   // -> ^Point\n```\n\nInside the body, the type parameter is valid in `new(T)`, struct literals `T{x: 1}`, and `size_of(T)`.\n\nThe return type uses `?`: `-> ^?` resolves to a pointer to the type argument, `-> ?` to the type argument itself.\n\n**Restrictions:**\n- Type and value parameters cannot be mixed in one signature (E2087).\n- Only struct type names may be passed \u2014 enums, primitives, and expressions are rejected (E3127, E3128).',
 
   // --- Attributes ---
@@ -794,6 +762,7 @@ export const DOCS: Record<string, string> = {
   '#error_code': '**`#error_code`** \u2014 Marks a plain integer-backed enum as contributing its variants to the open `ErrorCode` set. Variant names must be unique across the whole set.\n\n```gray\n#error_code\nconst NetError enum {\n    TIMEOUT\n    REFUSED\n}\n```',
   '#strict': '**`#strict`** \u2014 Applied to a `when` block, requires every variant of the matched enum to be handled.\n\n```gray\n#strict\nwhen dir {\n    is .NORTH { }\n    is .EAST  { }\n    is .SOUTH { }\n    is .WEST  { }\n}\n```',
   '#discard': '**`#discard`** \u2014 Marks a function whose return value may safely be ignored by callers.\n\nWithout `#discard`, calling a non-void function as a bare statement produces **E5011** (return value not used). With it, callers may drop the result.\n\n```gray\n#discard\ndo log(msg string) -> i64 {\n    println(msg)\n    return 0\n}\n\ndo main() {\n    log("hello")   // no E5011\n}\n```\n\nApplies to plain functions and struct functions. Cannot be applied to structs, enums, or variables (E2002), nor to void functions (E5042).',
+  '#define': '**`#define`** — Marks a top-level `const` so its value can be overridden at build time with the `-define:NAME=VALUE` flag. The override is baked into the binary; it is not a runtime flag.\n\n```gray\n#define\nconst ROSTER_PATH string = "./roster.txt"\n```\n\n```bash\ngray build main.gray -define:ROSTER_PATH=./my/path\n```\n\nApplies only to a top-level `const` of type `i8`..`i256`, `u8`..`u256`, `f32`, `f64`, `bool`, `char`, or `string`.',
   '#deprecated': '**`#deprecated`** / **`#deprecated("...")`** \u2014 Marks a function, struct, or enum as deprecated. Every reference to the item warns with **W3007**; the optional string names a replacement.\n\n```gray\n#deprecated("use parse_v2 instead")\ndo parse(s string) -> i64 {\n    return 0\n}\n```\n\nDeclaration-only \u2014 not yet supported on struct functions (E2002).',
   '#test': '**`#test`** \u2014 Marks a function as a test. Run by `gray test` and stripped from normal builds.\n\n```gray\n#test\ndo adds_two_numbers() {\n    assert(add(2, 2) == 4)\n}\n```\n\nCannot be applied to `main` (it is the program entry point). Attributes may also be grouped on one line: `#[test]`, `#[doc("x"), json]`.',
 

@@ -40,9 +40,6 @@
       "include": "#alias-declaration"
     },
     {
-      "include": "#type-parameter"
-    },
-    {
       "include": "#function-reference"
     },
     {
@@ -166,7 +163,7 @@
       "patterns": [
         {
           "name": "entity.other.attribute-name.gray",
-          "match": "\\b(doc|json|flags|error_code|strict|discard|deprecated|test)\\b"
+          "match": "\\b(doc|json|flags|error_code|strict|discard|define|deprecated|test)\\b"
         },
         {
           "include": "#strings"
@@ -264,10 +261,6 @@
         }
       }
     },
-    "type-parameter": {
-      "name": "support.type.wildcard.gray",
-      "match": "<\\?>|(?<![A-Za-z0-9_\\)\\]])\\?"
-    },
     "function-reference": {
       "match": "(\\(\\))\\s*([A-Za-z_][A-Za-z0-9_]*)",
       "captures": {
@@ -295,11 +288,11 @@
         },
         {
           "name": "keyword.declaration.gray",
-          "match": "\\b(const|mut|do|fn|struct|enum|alias|import|using|use|extern)\\b"
+          "match": "\\b(const|mut|do|fn|struct|enum|alias|generic|import|using|use|extern)\\b"
         },
         {
           "name": "storage.modifier.gray",
-          "match": "\\b(private|unsafe)\\b"
+          "match": "\\b(private|unsafe|distinct)\\b"
         },
         {
           "match": "(?<=import\\s)(and)(?=\\s+use\\b)",
@@ -339,7 +332,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.gray",
-          "match": "\\b(println|print|eprintln|eprint|flush|input|len|copy|ref|addr|raw|type_of|size_of|fields|here|to_char|char_count|c_string|error|assert|panic|exit|system|embed|sleep_s|sleep_ms|sleep_ns|i128|i256|u128|u256|string|bool|char)\\s*(?=\\()"
+          "match": "\\b(println|print|eprintln|eprint|flush|input|len|copy|ref|addr|raw|type_of|size_of|fields|here|to_char|char_count|from_c_string|to_c_string|error|assert|panic|exit|system|embed|sleep_s|sleep_ms|sleep_ns|i128|i256|u128|u256|string|bool|char)\\s*(?=\\()"
         },
         {
           "name": "entity.name.function.call.gray",

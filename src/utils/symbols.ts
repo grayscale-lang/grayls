@@ -78,12 +78,12 @@ const NON_DECL_HEADS = new Set([
   'return', 'for', 'for_each', 'if', 'when', 'switch', 'otherwise', 'else', 'or',
   'elif', 'is', 'case', 'default', 'break', 'continue', 'loop', 'while',
   'as_long_as', 'import', 'use', 'using', 'ensure', 'defer', 'new', 'and',
-  'const', 'mut', 'do', 'fn', 'func', 'alias', 'private', 'unsafe', 'range', 'cast',
+  'const', 'mut', 'do', 'fn', 'func', 'alias', 'distinct', 'generic', 'private', 'unsafe', 'range', 'cast',
   'in', 'not_in', 'println', 'print', 'eprintln', 'eprint', 'extern',
 ]);
 const STRUCT_PATTERN = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+struct\b/;
 const ENUM_PATTERN   = /^\s*(?:private\s+)?const\s+([A-Za-z][A-Za-z0-9_]*)\s+enum\b/;
-const ALIAS_PATTERN  = /^\s*(?:private\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
+const ALIAS_PATTERN  = /^\s*(?:private\s+)?(?:distinct\s+)?alias\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/;
 // Tagged-enum destructuring: `is Shape.Circle(radius)` or `is .Circle(radius)`
 const IS_PATTERN     = /^\s*(?:is|case)\s+(?:([A-Za-z][A-Za-z0-9_]*)\s*)?\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/;
 
@@ -621,27 +621,6 @@ export function implicitVariantAt(text: string, position: Position): string | nu
   if (start >= 2 && /[A-Za-z0-9_)\]]/.test(line[start - 2])) return null;
 
   return line.slice(start, end);
-}
-
-/**
- * If the cursor is on a wildcard type, return its doc key.
- *
- * Returns `'<?>'` when the cursor sits inside a `<?>` type-parameter
- * annotation, `'?'` for a bare wildcard type, and null otherwise.
- */
-export function wildcardAt(text: string, position: Position): string | null {
-  const lines = text.split('\n');
-  if (position.line >= lines.length) return null;
-  const line = lines[position.line];
-  const ch = position.character;
-
-  // The cursor may sit on either side of the character it refers to.
-  for (const i of [ch, ch - 1]) {
-    if (i < 0 || i >= line.length || line[i] !== '?') continue;
-    if (line[i - 1] === '<' && line[i + 1] === '>') return '<?>';
-    return '?';
-  }
-  return null;
 }
 
 /**

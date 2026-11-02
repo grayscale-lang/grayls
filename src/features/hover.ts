@@ -9,7 +9,6 @@ import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
   implicitVariantAt,
-  wildcardAt,
   wordAt,
   moduleWordAt,
   compositeTypeAt,
@@ -136,15 +135,7 @@ export function provideHover(
     };
   }
 
-  // 2. Wildcard type `?` / type parameter `<?>`
-  const wildcard = wildcardAt(text, params.position);
-  if (wildcard && DOCS[wildcard]) {
-    return {
-      contents: { kind: MarkupKind.Markdown, value: DOCS[wildcard] },
-    };
-  }
-
-  // 3. Attribute: #doc, #json, #flags, #strict, #discard
+  // 2. Attribute: #doc, #json, #flags, #strict, #discard
   const attr = attributeAt(text, params.position);
   if (attr && DOCS[attr]) {
     return {
@@ -152,7 +143,7 @@ export function provideHover(
     };
   }
 
-  // 4. Module function: arrays.append, math.sqrt, etc.
+  // 3. Module function: arrays.append, math.sqrt, etc.
   const modWord = moduleWordAt(text, params.position);
   if (modWord) {
     const key = `${modWord.module}.${modWord.fn}`;

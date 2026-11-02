@@ -83,6 +83,7 @@
   "or_default"
   "unsafe"
   "cast"
+  "distinct"
 ] @keyword
 
 ; Bitwise keyword operators
@@ -95,9 +96,12 @@
   "bit_shift_right"
 ] @keyword.operator
 
-; Break and continue are named nodes
-(break_statement) @keyword
-(continue_statement) @keyword
+; Break and continue are named nodes; the optional label follows the keyword
+(break_statement "break" @keyword)
+(continue_statement "continue" @keyword)
+(break_statement label: (identifier) @label)
+(continue_statement label: (identifier) @label)
+(labeled_statement label: (identifier) @label)
 
 ; Types - builtin primitives (defined in grammar)
 [
@@ -225,7 +229,7 @@
 ; Built-in function calls
 (call_expression
   function: (identifier) @function.builtin
-  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|flush|input|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
+  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|flush|input|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|from_c_string|to_c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
 
 ; cast is a dedicated expression node - highlight keyword portion
 (cast_expression
@@ -288,10 +292,7 @@
 (pointer_type
   "^" @operator)
 
-; Wildcard type
-(wildcard_type) @type.builtin
-
-; Type parameter annotation: do make(T <?>)
+; Type parameter: do make(T generic)
 (type_parameter) @type.builtin
 
 ; Type alias declaration
