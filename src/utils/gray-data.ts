@@ -42,6 +42,8 @@ export const BUILTINS: string[] = [
   'i128', 'i256', 'u128', 'u256',
   // Compile-time
   'embed',
+  // Wrapping arithmetic (unsafe)
+  'wrap_add', 'wrap_sub', 'wrap_mult', 'wrap_div',
   // Shell
   'system',
   // Sleep
@@ -274,6 +276,10 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'http.post': '**`http.post(url string, body string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP POST request to url with the given body and optional custom headers (omit headers to send none). Sends form-urlencoded as the Content-Type unless headers names one; Host, Content-Length and Connection in headers are not sent. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
   'http.put': '**`http.put(url string, body string, headers map[string:string] = {:}) -> (HttpResponse, Error)`** — Sends an HTTP PUT request to url with the given body and optional custom headers (omit headers to send none). Sends form-urlencoded as the Content-Type unless headers names one; Host, Content-Length and Connection in headers are not sent. Always use destructuring (`mut resp, err = ...` or `mut resp, _ = ...`) — single-variable assignment is a compile error.',
   // @io
+  'io.FileInfo': '**`io.FileInfo`** — The metadata returned by stat: size in bytes, permission bits, modification time in seconds since the Unix epoch, and the entry type. FileInfo is reserved as a type name while io is imported.\n\nMembers: `size i64`, `mode i64`, `mod_time i64`, `is_dir bool`, `is_file bool`, `is_symlink bool`',
+  'io.O_RDONLY': '**`io.O_RDONLY`** = `0` — Open for reading only. A member of `io.OpenFlag`, also reachable as `OpenFlag.O_RDONLY`.',
+  'io.O_RDWR': '**`io.O_RDWR`** = `2` — Open for reading and writing. A member of `io.OpenFlag`, also reachable as `OpenFlag.O_RDWR`.',
+  'io.O_WRONLY': '**`io.O_WRONLY`** = `1` — Open for writing only. A member of `io.OpenFlag`, also reachable as `OpenFlag.O_WRONLY`.',
   'io.OpenFlag': '**`io.OpenFlag`** — Mutually-exclusive open modes. Reachable as io.O_RDONLY or OpenFlag.O_RDONLY (same value). Underlying values: O_RDONLY 0, O_WRONLY 1, O_RDWR 2.\n\nMembers: `O_RDONLY`, `O_WRONLY`, `O_RDWR`',
   'io.append_bytes': '**`io.append_bytes(path string, data [u8]) -> (bool, Error)`** — Appends a u8 array to the end of the file at path. Creates the file if it does not exist. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
   'io.append_file': '**`io.append_file(path string, content string) -> (bool, Error)`** — Appends content to the end of the file at path. Creates the file if it does not exist. Always use destructuring — single-variable assignment is a compile error. Relative paths resolve from the working directory where the binary is executed, not the source file location.',
@@ -411,6 +417,11 @@ export const MODULE_FUNCTION_DOCS: Record<string, string> = {
   'net.send': '**`net.send(sock Socket, data string) -> (i64, Error)`** — Sends all of data over sock and returns the number of bytes written, which is `len(data)` on success. On failure it returns the bytes written so far and an Error. Always use destructuring (`mut v, err = ...` or `mut v, _ = ...`) — single-variable assignment is a compile error.',
   'net.set_timeout': '**`net.set_timeout(sock Socket, ms i64)`** — Sets the send and receive timeout on sock in milliseconds. No return value.',
   // @os
+  'os.ExecResult': '**`os.ExecResult`** — The result returned by exec: the process\'s exit code, the standard output and standard error it produced, and the signal that terminated it (0 when it exited normally, and always 0 on Windows). ExecResult is reserved as a type name while os is imported.\n\nMembers: `exit_code i64`, `stdout string`, `stderr string`, `signal i64`',
+  'os.LINUX': '**`os.LINUX`** = `1` — Host operating system is Linux. A member of `os.Platform`, also reachable as `Platform.LINUX`.',
+  'os.MAC_OS': '**`os.MAC_OS`** = `0` — Host operating system is macOS. A member of `os.Platform`, also reachable as `Platform.MAC_OS`.',
+  'os.OTHER': '**`os.OTHER`** = `3` — Host operating system is none of the others. A member of `os.Platform`, also reachable as `Platform.OTHER`.',
+  'os.WINDOWS': '**`os.WINDOWS`** = `2` — Host operating system is Windows. A member of `os.Platform`, also reachable as `Platform.WINDOWS`.',
   'os.Platform': '**`os.Platform`** — Host operating system. Reachable as os.MAC_OS or Platform.MAC_OS (same value). Underlying values: MAC_OS 0, LINUX 1, WINDOWS 2, OTHER 3.\n\nMembers: `MAC_OS`, `LINUX`, `WINDOWS`, `OTHER`',
   'os.arch': '**`os.arch() -> string`** — Returns the CPU architecture of the current machine, such as "arm64" or "x86_64".',
   'os.args': '**`os.args() -> [string]`** — Returns the command-line arguments passed to the program as an array of strings. The first element is the program name.',
@@ -683,7 +694,7 @@ export const DOCS: Record<string, string> = {
   'or_return': '**`or_return`** — Returns early if the expression is an Error.',
   'or_panic': '**`or_panic`** — Aborts instead of propagating. Follows a single-variable declaration whose call returns `(T, Error)`. When the call returns a non-nil error, the program panics with the error\'s message, or with the string written after `or_panic`. Legal in `main()` and in functions that return no `Error`.\n\n```gray\nmut port = lookup("port") or_panic\nmut n = strconv.to_i64(text) or_panic "config must hold a port number"\n```',
   'or_default': '**`or_default`** — Substitutes fallback values when the call fails. On success the call\'s values are used and the fallbacks are not evaluated; on failure the error is discarded and the fallbacks are used, one per non-error value the call returns, in return order. Needs a binding, and is legal in `main()` and in functions that return no `Error`.\n\n```gray\nmut port = strconv.to_i64(text) or_default 8080\nmut low, high = bounds(text) or_default 0, 100\n```',
-  'unsafe': '**`unsafe`** — Marks code that uses `raw()`, the `mem` and `threads` modules, or `extern` calls; each is **E5065** outside an `unsafe` block or unsafe function.\n\n```gray\nunsafe {\n    counter^ += 1\n}\n\nprivate unsafe do bump(counter ^i64) {\n    counter^ += 1\n}\n```\n\nAn `unsafe` block is an ordinary scope. `unsafe do` marks the whole function body; with `private`, the order is `private unsafe do`. A function that opens its own `unsafe` block does not force its callers to.',
+  'unsafe': '**`unsafe`** — Marks code that uses `raw()`, `wrap_add()`, `wrap_sub()`, `wrap_mult()`, `wrap_div()`, the `mem` and `threads` modules, or `extern` calls; each is **E5065** outside an `unsafe` block or unsafe function.\n\n```gray\nunsafe {\n    counter^ += 1\n}\n\nprivate unsafe do bump(counter ^i64) {\n    counter^ += 1\n}\n```\n\nAn `unsafe` block is an ordinary scope. `unsafe do` marks the whole function body; with `private`, the order is `private unsafe do`. A function that opens its own `unsafe` block does not force its callers to.',
   'from_c_string': '**`from_c_string(ptr ^u8) -> string`** — Converts a C `char*` return value to a Grayscale string (C interop).',
   'to_c_string': '**`to_c_string(s string) -> ^u8`** — Returns a NUL-terminated copy of a string as a raw C pointer that lives for the rest of the program, for storing in an extern struct field or a `^u8` variable (C interop).',
   'ensure': '**`ensure`** — Deferred cleanup. Runs when the surrounding function exits. `defer` is an alias.\n\n```gray\nensure cleanup()\n```',
@@ -700,7 +711,7 @@ export const DOCS: Record<string, string> = {
   'and': '**`and`** \u2014 Part of the combined `import and use` statement.\n\n```gray\nimport and use @arrays\n```\n\nEquivalent to:\n\n```gray\nimport @arrays\nusing arrays\n```\n\nMultiple modules can be combined:\n\n```gray\nimport and use @arrays, @strings\n```',
 
   // --- Types ---
-  'string': '**`string`** — UTF-8 encoded u8 sequence. `len()` returns u8 length; use `char_count()` for character count.\n\n```gray\nmut s string = "hello"\n```',
+  'string': '**`string`** — UTF-8 encoded byte sequence. `len()` returns the byte length; use `char_count()` for the codepoint count.\n\n```gray\nmut s string = "hello"\n```',
   'bool': '**`bool`** — Boolean type. Values: `true` or `false`.',
   'char': '**`char`** — A single Unicode codepoint, held as a 32-bit integer (`int32_t` at the C boundary). `cast(c, i64)` yields the numeric codepoint; `char(n)` converts a codepoint to a `char`.\n\n```gray\nmut letter char = \'A\'\nmut cjk char = char(26085)\n```',
   'Error': '**`Error`** — Error type returned from functions that can fail. Create with `error("message")`.',
@@ -733,6 +744,10 @@ export const DOCS: Record<string, string> = {
   'size_of': '**`size_of(Type) -> i64`** — Returns the size of a type in bytes.',
   'fields': '**`fields(instance) -> [string]`** \u2014 Returns the field names of a struct as an array of strings, in declaration order.\n\nAccepts struct instances and pointers to structs.\n\n```gray\nconst Point struct {\n    x i64\n    y i64\n}\n\nmut p = Point{x: 1, y: 2}\nprintln(fields(p))   // {"x", "y"}\n```',
   'here': '**`here() -> SourceLocation`** — Returns the call site’s source location: `file` (string), `line` (i64), `column` (i64). No import required.\n\n```gray\nmut loc = here()\nprintln("${loc.file}:${loc.line}")\n```',
+  'wrap_add': '**`wrap_add(a T, b T) -> T`** — Adds two integers and wraps modulo 2^N instead of panicking on overflow, in two\'s complement for signed types. T is any integer type; a literal takes the other operand\'s type. Unsafe: requires an unsafe block or an unsafe function.\n\n```gray\nunsafe {\n    mut x u8 = 255\n    println(wrap_add(x, 1))\n}\n```',
+  'wrap_sub': '**`wrap_sub(a T, b T) -> T`** — Subtracts two integers and wraps modulo 2^N instead of panicking on overflow. Wrapping negation is wrap_sub(0, x). Unsafe: requires an unsafe block or an unsafe function.\n\n```gray\nunsafe {\n    mut x u32 = 0\n    println(wrap_sub(x, 1))\n}\n```',
+  'wrap_mult': '**`wrap_mult(a T, b T) -> T`** — Multiplies two integers and wraps modulo 2^N instead of panicking on overflow, as a hash or random number generator needs. Unsafe: requires an unsafe block or an unsafe function.\n\n```gray\nunsafe {\n    mut hash u64 = 14695981039346656037\n    hash = wrap_mult(hash bit_xor 97, 1099511628211)\n}\n```',
+  'wrap_div': '**`wrap_div(a T, b T) -> T`** — Divides two integers, returning the type\'s minimum for MIN / -1 instead of panicking. Division by zero still panics. Unsafe: requires an unsafe block or an unsafe function.\n\n```gray\nunsafe {\n    mut x i8 = -128\n    println(wrap_div(x, -1))\n}\n```',
   'copy': '**`copy(value) -> T`** — Creates a deep copy of any value.',
   'ref': '**`ref(variable) -> T`** — Creates a transparent reference (alias) to a variable.',
   'addr': '**`addr(variable) -> ^T`** — Returns the memory address of a variable as a pointer.',
@@ -752,8 +767,6 @@ export const DOCS: Record<string, string> = {
   // --- C interop ---
   'extern': '**`extern`** \u2014 C interop. Import a C header with `extern import`, then call into it through the `extern.` prefix:\n\n```gray\nextern import "stdio.h"           // system header \u2192 #include <stdio.h>\nextern import "./mylib.h"         // local header  \u2192 #include "./mylib.h"\nextern import "stdio.h", "stdlib.h"\n\ndo main() {\n    extern.puts("hello from C")\n    extern.printf("value: %d\\n", 42)\n    mut eof i64 = extern.EOF        // constants and macros too\n}\n```\n\nThe `extern.` prefix is required at every C call site. A C call result has no Grayscale type of its own: assign it to a type-annotated variable, pass it to another `extern.` call, or convert it with `c_string()`.\n\n```gray\nmut home string = c_string(extern.getenv("HOME"))\n```\n\n**Cannot be passed to C:** `i128`, `i256`, `u128`, `u256`, arrays, maps, and Grayscale structs.\n\nThe module name `extern` is reserved \u2014 a local `extern.gray` must be imported under an alias.',
 
-  // --- Wildcard types ---
-  '<?>': '**`<?>`** \u2014 Type parameter. Lets a function parameter accept a struct **type name** rather than a value.\n\n```gray\nconst Point struct {\n    x i64\n    y i64\n}\n\ndo make(T <?>) -> ^? {\n    return new(T)\n}\n\nmut p = make(Point)   // -> ^Point\n```\n\nInside the body, the type parameter is valid in `new(T)`, struct literals `T{x: 1}`, and `size_of(T)`.\n\nThe return type uses `?`: `-> ^?` resolves to a pointer to the type argument, `-> ?` to the type argument itself.\n\n**Restrictions:**\n- Type and value parameters cannot be mixed in one signature (E2087).\n- Only struct type names may be passed \u2014 enums, primitives, and expressions are rejected (E3127, E3128).',
 
   // --- Attributes ---
   '#doc': '**`#doc("...")`** \u2014 Documentation metadata for functions, structs, enums, and file-scope variables. Consumed by `gray doc`.\n\n```gray\n#doc("Adds two numbers")\ndo add(a i64, b i64) -> i64 {\n    return a + b\n}\n```',

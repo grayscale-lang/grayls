@@ -5,7 +5,9 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, ATTRIBUTES, DOCS } from '../utils/gray-data';
+import {
+  KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, ATTRIBUTES, DOCS, MODULE_FUNCTION_DOCS,
+} from '../utils/gray-data';
 import { scanSymbols } from '../utils/symbols';
 
 // Pre-built static completion lists (created once)
@@ -46,6 +48,24 @@ const MODULE_ITEMS: CompletionItem[] = STDLIB_MODULES.map(m => ({
   documentation: DOCS[m],
   insertText: m,
 }));
+
+// Members of each stdlib module (functions, constants, types), keyed by module name.
+// The docs text tells them apart: `mod.name(` is a function, `mod.NAME` = is a constant.
+const MODULE_MEMBER_ITEMS = new Map<string, CompletionItem[]>();
+for (const [key, doc] of Object.entries(MODULE_FUNCTION_DOCS)) {
+  const dot = key.indexOf('.');
+  const module = key.slice(0, dot);
+  const name = key.slice(dot + 1);
+  const heading = doc.slice(0, doc.indexOf('—'));
+  const kind = heading.includes('(')
+    ? CompletionItemKind.Function
+    : heading.includes('=')
+      ? CompletionItemKind.Constant
+      : CompletionItemKind.Struct;
+  const items = MODULE_MEMBER_ITEMS.get(module) ?? [];
+  items.push({ label: name, kind, detail: key, documentation: doc });
+  MODULE_MEMBER_ITEMS.set(module, items);
+}
 
 // Static items always available
 const STATIC_ITEMS: CompletionItem[] = [
@@ -100,9 +120,12 @@ export function provideCompletion(
     return ATTRIBUTE_ITEMS;
   }
 
-  // Context: after `import @module using` → still show modules (already picked)
-  // For now, just return static items. Module-member completion would need
-  // a per-module symbol table which is a follow-up.
+  // Context: after `module.` → that stdlib module's functions, constants and types
+  const memberMatch = prefix.match(/(?<![A-Za-z0-9_.])([a-z][a-z0-9_]*)\.\w*$/);
+  if (memberMatch) {
+    const members = MODULE_MEMBER_ITEMS.get(memberMatch[1]);
+    if (members) return members;
+  }
 
   const text = doc.getText();
   const fileSymbols = scanSymbols(text);

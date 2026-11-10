@@ -180,12 +180,12 @@ do bump(&counter i64, by i64 = 1) {
     counter += by
 }
 
-// Wildcard types and type parameters.
-do identity(value ?) -> ? {
+// Type parameters declared with generic.
+do identity(T generic, value T) -> T {
     return value
 }
 
-do make(T <?>) -> ^? {
+do make(T generic) -> ^T {
     return new(T)
 }
 
@@ -225,7 +225,7 @@ do load_port(text string) -> (u16, Error) {
 }
 
 // Calls into C with the extern prefix.
-do say_hello_from_c() {
+unsafe do say_hello_from_c() {
     extern.puts("hello from C")
 }
 
@@ -385,14 +385,18 @@ do pointer_tour() {
 
 do struct_tour() {
     mut origin = Point{x: 0.0, y: 0.0}
-    mut config = Config{host: "example.com", port: 443, debug: true}
+    mut config = Config{
+        host: "example.com",
+        port: 443,
+        debug: true,
+    }
     mut user = User{name: "Ada", age: 36, active: true}
     mut counter = Counter{count: 0}
     counter.increment()
 
     println("${origin.x} ${config.host} ${user.name} ${counter.value()}")
     println(fields(user))
-    println(json.stringify(user))
+    println(json.encode(user))
     println(type_of(config))
     println(size_of(Point))
 }
@@ -417,7 +421,7 @@ do call_tour() {
     }
 
     _ = log_line("discarded result")
-    println("${quotient} ${remainder} ${counter} ${port} ${identity(5)}")
+    println("${quotient} ${remainder} ${counter} ${port} ${identity(i64, 5)}")
 }
 
 // ---------------------------------------------------------------------------
@@ -460,8 +464,18 @@ do using_tour() {
     println(len(duplicate))
 }
 
+// Wrapping arithmetic wraps on overflow instead of panicking; unsafe code only.
+unsafe do wrapping_tour() {
+    mut byte_value u8 = 255
+    println(wrap_add(byte_value, 1))
+    println(wrap_sub(byte_value, 255))
+    println(wrap_mult(byte_value, 2))
+    println(wrap_div(byte_value, 5))
+}
+
 do main() {
     println(APP_NAME)
+    wrapping_tour()
     println(add(1, 2))
     println(describe(Level.HIGH))
     println(direction_name(Direction.NORTH))

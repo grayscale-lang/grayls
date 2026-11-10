@@ -128,7 +128,7 @@
 
 ; Builtin types that are identifiers (runtime/stdlib types)
 ((identifier) @type.builtin
-  (#match? @type.builtin "^(Database|Error|ErrorCode|SourceLocation|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router|UUID|OpenFlag|Platform|Builder)$"))
+  (#match? @type.builtin "^(Database|Error|ErrorCode|SourceLocation|HttpResponse|HttpRequest|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|Router|UUID|OpenFlag|Platform|Builder|FileInfo|ExecResult)$"))
 
 ; Type annotations - user defined types
 (type (identifier) @type.builtin)
@@ -229,7 +229,7 @@
 ; Built-in function calls
 (call_expression
   function: (identifier) @function.builtin
-  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|flush|input|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|from_c_string|to_c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here)$"))
+  (#match? @function.builtin "^(len|type_of|copy|error|exit|panic|assert|ref|flush|input|range|addr|println|print|eprintln|eprint|sleep_s|sleep_ms|sleep_ns|to_char|char_count|from_c_string|to_c_string|i128|u128|i256|u256|size_of|fields|system|raw|embed|here|wrap_add|wrap_sub|wrap_mult|wrap_div)$"))
 
 ; cast is a dedicated expression node - highlight keyword portion
 (cast_expression

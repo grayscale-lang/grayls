@@ -332,7 +332,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.gray",
-          "match": "\\b(println|print|eprintln|eprint|flush|input|len|copy|ref|addr|raw|type_of|size_of|fields|here|to_char|char_count|from_c_string|to_c_string|error|assert|panic|exit|system|embed|sleep_s|sleep_ms|sleep_ns|i128|i256|u128|u256|string|bool|char)\\s*(?=\\()"
+          "match": "\\b(println|print|eprintln|eprint|flush|input|len|copy|ref|addr|raw|type_of|size_of|fields|here|to_char|char_count|from_c_string|to_c_string|error|assert|panic|exit|system|embed|wrap_add|wrap_sub|wrap_mult|wrap_div|sleep_s|sleep_ms|sleep_ns|i128|i256|u128|u256|string|bool|char)\\s*(?=\\()"
         },
         {
           "name": "entity.name.function.call.gray",
@@ -348,7 +348,7 @@
         },
         {
           "name": "support.type.builtin.gray",
-          "match": "\\b(string|bool|char|func|map|Error|ErrorCode|SourceLocation|Database|Router|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|UUID|HttpRequest|HttpResponse|OpenFlag|Platform|Builder)\\b"
+          "match": "\\b(string|bool|char|func|map|Error|ErrorCode|SourceLocation|Database|Router|Thread|Mutex|Channel|Arena|SpinLock|Socket|Listener|UUID|HttpRequest|HttpResponse|OpenFlag|Platform|Builder|FileInfo|ExecResult)\\b"
         }
       ]
     },

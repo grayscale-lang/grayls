@@ -161,8 +161,8 @@ function splitTopLevel(text: string): string[] {
  * Parse a function parameter list into names, types, and defaults.
  *
  * Handles grouped names sharing a type (`a, b i64`), defaults
- * (`port i64 = 8080`), reference params (`&buf [u8]`), wildcard types
- * (`x ?`), and type parameters (`T <?>`).
+ * (`port i64 = 8080`), reference params (`&buf [u8]`), and type
+ * parameters (`T generic`).
  */
 function parseParams(list: string): FuncParam[] {
   const params: FuncParam[] = [];
