@@ -1,13 +1,15 @@
 import {
   Hover,
   HoverParams,
+  Position,
   MarkupKind,
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
+import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { resolveLocalImports } from '../utils/imports';
+import { LocalImport, resolveLocalImports } from '../utils/imports';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
@@ -117,6 +119,48 @@ function renderVariable(sym: GraySymbol): string {
   return `**${kindLabel}**${typeInfo} \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
 }
 
+// True when the word under the cursor is used as a module: `name.member`, or
+// anywhere on an `import` line. A word after a `.` is a member, not a module.
+function isModuleReference(text: string, position: Position): boolean {
+  const line = text.split('\n')[position.line] ?? '';
+  let start = position.character;
+  let end = position.character;
+  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
+  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
+  if (start > 0 && line[start - 1] === '.') return false;
+  return line[end] === '.' || /^\s*import\b/.test(line);
+}
+
+function renderModule(
+  name: string,
+  mod: LocalImport,
+  docUri: string,
+  documents: TextDocuments<TextDocument>,
+): string {
+  const relative = path.relative(path.dirname(fileURLToPath(docUri)), mod.target);
+  const shown = relative.startsWith('.') ? relative : `./${relative}`;
+  const bytes = mod.files.reduce((total, fileUri) => total + fs.statSync(fileURLToPath(fileUri)).size, 0);
+  const size = `${bytes.toLocaleString('en-US')} bytes`;
+  const kind = mod.isDirectory
+    ? `directory, ${mod.files.length} file${mod.files.length === 1 ? '' : 's'}, ${size}`
+    : `file, ${size}`;
+  let value = `**Module** \`${name}\`\n\n\`${shown}\` (${kind})`;
+  if (name !== mod.realName) value += `\n\nAliased from \`${mod.realName}\``;
+
+  const rows: string[] = [];
+  for (const fileUri of mod.files) {
+    const source = documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
+    const lines = source.split('\n');
+    for (const sym of scanSymbols(source)) {
+      if (/^\s/.test(lines[sym.line]) || /^private\b/.test(sym.declaration)) continue;
+      const detail = sym.kind === 'struct' || sym.kind === 'enum' ? sym.name : sym.declaration.replace(/\s*\{$/, '');
+      rows.push(`| ${sym.kind} | \`${detail.replace(/\|/g, '\\|')}\` |`);
+    }
+  }
+  if (rows.length > 0) value += `\n\n| Kind | Declaration |\n|------|-------------|\n${rows.join('\n')}`;
+  return value;
+}
+
 function renderSymbol(sym: GraySymbol): string {
   switch (sym.kind) {
     case 'enum':     return renderEnum(sym);
@@ -166,10 +210,14 @@ export function provideHover(
       };
     }
     // User module: `types.GameState` resolves through the file's local imports.
-    const files = resolveLocalImports(text, params.textDocument.uri).get(modWord.module) ?? [];
+    const files = resolveLocalImports(text, params.textDocument.uri).get(modWord.module)?.files ?? [];
     for (const fileUri of files) {
-      const imported = scanSymbols(documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8'));
-      const member = imported.find(s => s.name === modWord.fn && s.kind !== 'variable');
+      const importedText = documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
+      // File-scope declarations only: locals and struct functions are indented.
+      const importedLines = importedText.split('\n');
+      const member = scanSymbols(importedText).find(
+        s => s.name === modWord.fn && !/^\s/.test(importedLines[s.line]),
+      );
       if (member) {
         return { contents: { kind: MarkupKind.Markdown, value: renderSymbol(member) } };
       }
@@ -210,6 +258,17 @@ export function provideHover(
 
   const word = wordAt(text, params.position);
   if (!word) return null;
+
+  // 5b. Local module name: `types` in `types.Hero` or on its import line.
+  const localModule = resolveLocalImports(text, params.textDocument.uri).get(word);
+  if (localModule && isModuleReference(text, params.position)) {
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: renderModule(word, localModule, params.textDocument.uri, documents),
+      },
+    };
+  }
 
   // 6. Static docs: keywords, primitive types, builtins, module names
   if (DOCS[word]) {

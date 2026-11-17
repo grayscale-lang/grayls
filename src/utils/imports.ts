@@ -7,13 +7,23 @@ const SOURCE_EXTENSIONS = ['.gray', '.grayscale'];
 // One entry of an import statement: `"./path"` or `alias "./path"`.
 const LOCAL_IMPORT_ITEM = /^(?:([A-Za-z_][A-Za-z0-9_]*)\s+)?"([^"]+)"$/;
 
+export interface LocalImport {
+  /** Source file URIs behind the module (one per file in a directory import). */
+  files: string[];
+  /** The module's own name, which differs from the bound name when aliased. */
+  realName: string;
+  /** Absolute path of the imported file or directory. */
+  target: string;
+  isDirectory: boolean;
+}
+
 /**
  * Resolve the local imports of a file to the module name each one binds and
- * the source file URIs behind it. Stdlib (`@`) and `extern` imports are skipped.
+ * the source files behind it. Stdlib (`@`) and `extern` imports are skipped.
  * A directory import merges every top-level source file in the directory.
  */
-export function resolveLocalImports(text: string, docUri: string): Map<string, string[]> {
-  const modules = new Map<string, string[]>();
+export function resolveLocalImports(text: string, docUri: string): Map<string, LocalImport> {
+  const modules = new Map<string, LocalImport>();
   if (!docUri.startsWith('file:')) return modules;
   const baseDir = path.dirname(fileURLToPath(docUri));
 
@@ -31,7 +41,12 @@ export function resolveLocalImports(text: string, docUri: string): Map<string, s
       if (files.length === 0) continue;
 
       const baseName = path.basename(target).replace(/\.(gray|grayscale)$/, '');
-      modules.set(alias ?? baseName, files.map(file => pathToFileURL(file).toString()));
+      modules.set(alias ?? baseName, {
+        files: files.map(file => pathToFileURL(file).toString()),
+        realName: baseName,
+        target,
+        isDirectory: !files.includes(target) && !files.includes(target + '.gray') && !files.includes(target + '.grayscale'),
+      });
     }
   }
   return modules;
