@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
 import * as path from 'path';
 import * as cp from 'child_process';
 import {
@@ -17,15 +18,17 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 // Match: error[E3018]: message\n  --> file.gray:42:10
 // or:    warning[W1234]: message\n  --> file.gray:42:10
 const DIAG_PATTERN =
-  /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+[^:]+:(\d+):(\d+)/gm;
+  /^(error|warning)\[([EW]\d+)\]:\s+(.+)\n\s+-->\s+([^:]+):(\d+):(\d+)/gm;
 
-function parseDiagnostics(output: string): Diagnostic[] {
+function parseDiagnostics(output: string, checkedFile: string): Diagnostic[] {
   const diags: Diagnostic[] = [];
   let m: RegExpExecArray | null;
   DIAG_PATTERN.lastIndex = 0;
 
   while ((m = DIAG_PATTERN.exec(output)) !== null) {
-    const [, severity, code, message, lineStr, colStr] = m;
+    const [, severity, code, message, file, lineStr, colStr] = m;
+    // Errors inside imported files belong to those files, not this buffer.
+    if (path.basename(file) !== path.basename(checkedFile)) continue;
     const line = Math.max(0, parseInt(lineStr, 10) - 1);  // to 0-indexed
     const col  = Math.max(0, parseInt(colStr, 10) - 1);
 
@@ -45,13 +48,24 @@ function parseDiagnostics(output: string): Diagnostic[] {
   return diags;
 }
 
-function runCheck(text: string): Diagnostic[] {
-  // Write to a temp file so gray can read it (handles unsaved buffers too)
-  const tmpFile = path.join(os.tmpdir(), `gray-lsp-${process.pid}.gray`);
+function runCheck(text: string, uri: string): Diagnostic[] {
+  // Write the buffer to a hidden file next to the document so relative imports
+  // resolve against its real directory (handles unsaved buffers too). Hidden
+  // files are skipped by directory imports. Fall back to the temp directory.
+  const fileName = `.gray-lsp-${process.pid}.gray`;
+  let tmpFile = path.join(os.tmpdir(), fileName);
+  if (uri.startsWith('file:')) {
+    tmpFile = path.join(path.dirname(fileURLToPath(uri)), fileName);
+  }
   try {
     fs.writeFileSync(tmpFile, text, 'utf8');
   } catch {
-    return [];
+    tmpFile = path.join(os.tmpdir(), fileName);
+    try {
+      fs.writeFileSync(tmpFile, text, 'utf8');
+    } catch {
+      return [];
+    }
   }
 
   try {
@@ -62,7 +76,7 @@ function runCheck(text: string): Diagnostic[] {
       timeout: 10_000,
     });
     const output = (result.stdout ?? '') + (result.stderr ?? '');
-    return parseDiagnostics(output);
+    return parseDiagnostics(output, tmpFile);
   } catch {
     return [];
   } finally {
@@ -83,7 +97,7 @@ export function registerDiagnostics(
       uri,
       setTimeout(() => {
         timers.delete(uri);
-        const diags = runCheck(doc.getText());
+        const diags = runCheck(doc.getText(), uri);
         connection.sendDiagnostics({ uri, diagnostics: diags });
       }, 300),
     );
