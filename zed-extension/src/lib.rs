@@ -3,6 +3,7 @@ use zed_extension_api::{self as zed, LanguageServerId, Result};
 
 const REPOSITORY: &str = "grayscale-lang/grayls";
 const SERVER_ASSET: &str = "server.js";
+const DEV_SERVER: &str = "dev/server.js";
 
 struct GrayExtension {
     cached_server_path: Option<String>,
@@ -12,6 +13,12 @@ impl GrayExtension {
     // Downloads server.js from the latest grayls release on first use, then
     // reuses it for the rest of the session.
     fn server_path(&mut self, language_server_id: &LanguageServerId) -> Result<String> {
+        // Local build for testing before a release: copy out/server.js to
+        // dev/server.js in the extension's work directory.
+        if fs::metadata(DEV_SERVER).is_ok() {
+            return Ok(DEV_SERVER.to_string());
+        }
+
         if let Some(path) = &self.cached_server_path {
             if fs::metadata(path).is_ok() {
                 return Ok(path.clone());
