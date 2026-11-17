@@ -9,7 +9,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { LocalImport, findImportedMember, findStructFunction, resolveLocalImports } from '../utils/imports';
+import { findStructField } from '../utils/fields';
+import { LocalImport, importedSymbols, findImportedMember, findStructFunction, resolveLocalImports } from '../utils/imports';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
@@ -17,6 +18,8 @@ import {
   wordAt,
   moduleWordAt,
   structFunctionAt,
+  fieldAccessAt,
+  isModuleReference,
   compositeTypeAt,
   scanSymbols,
   GraySymbol,
@@ -123,23 +126,12 @@ function renderVariable(sym: GraySymbol): string {
   return `**${kindLabel}**${typeInfo} \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
 }
 
-// True when the word under the cursor is used as a module: `name.member`, or
-// anywhere on an `import` line. A word after a `.` is a member, not a module.
-function isModuleReference(text: string, position: Position): boolean {
-  const line = text.split('\n')[position.line] ?? '';
-  let start = position.character;
-  let end = position.character;
-  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
-  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
-  if (start > 0 && line[start - 1] === '.') return false;
-  return line[end] === '.' || /^\s*import\b/.test(line);
-}
-
 function renderModule(
   name: string,
   mod: LocalImport,
   docUri: string,
-  documents: TextDocuments<TextDocument>,
+  text: string,
+  openText: (fileUri: string) => string | undefined,
 ): string {
   const relative = path.relative(path.dirname(fileURLToPath(docUri)), mod.target);
   const shown = relative.startsWith('.') ? relative : `./${relative}`;
@@ -151,16 +143,10 @@ function renderModule(
   let value = `**Module** \`${name}\`\n\n\`${shown}\` (${kind})`;
   if (name !== mod.realName) value += `\n\nAliased from \`${mod.realName}\``;
 
-  const rows: string[] = [];
-  for (const fileUri of mod.files) {
-    const source = documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
-    const lines = source.split('\n');
-    for (const sym of scanSymbols(source)) {
-      if (/^\s/.test(lines[sym.line]) || /^private\b/.test(sym.declaration)) continue;
-      const detail = sym.kind === 'struct' || sym.kind === 'enum' ? sym.name : sym.declaration.replace(/\s*\{$/, '');
-      rows.push(`| ${sym.kind} | \`${detail.replace(/\|/g, '\\|')}\` |`);
-    }
-  }
+  const rows = importedSymbols(text, docUri, name, openText).map(({ symbol }) => {
+    const detail = symbol.kind === 'struct' || symbol.kind === 'enum' ? symbol.name : symbol.declaration.replace(/\s*\{$/, '');
+    return `| ${symbol.kind} | \`${detail.replace(/\|/g, '\\|')}\` |`;
+  });
   if (rows.length > 0) value += `\n\n| Kind | Declaration |\n|------|-------------|\n${rows.join('\n')}`;
   return value;
 }
@@ -282,9 +268,30 @@ export function provideHover(
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: renderModule(word, localModule, params.textDocument.uri, documents),
+        value: renderModule(word, localModule, params.textDocument.uri, text, fileUri => documents.get(fileUri)?.getText()),
       },
     };
+  }
+
+  // 5c. Struct field: `dice.sides`, `state.hero.level`
+  const fieldAccess = fieldAccessAt(text, params.position);
+  if (fieldAccess) {
+    const found = findStructField(
+      text,
+      params.textDocument.uri,
+      params.position,
+      fieldAccess,
+      fileUri => documents.get(fileUri)?.getText(),
+    );
+    if (found) {
+      const def = found.field.default !== undefined ? ` = ${found.field.default}` : '';
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: `**Field** \`${found.structName}.${found.field.name}\`\n\n\`\`\`gray\n${found.field.name} ${found.field.type}${def}\n\`\`\``,
+        },
+      };
+    }
   }
 
   // 6. Static docs: keywords, primitive types, builtins, module names

@@ -110,7 +110,7 @@ function extractType(line: string): string | undefined {
 
   // Match the type token: could be [T], [[T]], [T,N], map[K:V], ^T, or a bare identifier
   const typeMatch = afterName.match(
-    /^(\[\[.*?\]\]|\[.*?\]|map\[[^\]]*\]|\^?[A-Za-z][A-Za-z0-9_]*(?:\[[^\]]*\])?)/,
+    /^(\[\[.*?\]\]|\[.*?\]|map\[[^\]]*\]|\^?[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?(?:\[[^\]]*\])?)/,
   );
   if (!typeMatch) return undefined;
 
@@ -126,7 +126,7 @@ function extractType(line: string): string | undefined {
 function extractTypeAfter(afterNames: string): string | undefined {
   const s = afterNames.trim();
   const mt = s.match(
-    /^(\[\[.*?\]\]|\[.*?\]|map\[[^\]]*\]|\^?[A-Za-z][A-Za-z0-9_]*(?:\[[^\]]*\])?)/,
+    /^(\[\[.*?\]\]|\[.*?\]|map\[[^\]]*\]|\^?[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?(?:\[[^\]]*\])?)/,
   );
   return mt ? mt[1].trim() : undefined;
 }
@@ -704,6 +704,51 @@ export function wordAt(text: string, position: Position): string {
   while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
 
   return line.slice(start, end);
+}
+
+/**
+ * True when the word under the cursor is used as a module: `name.member`, or
+ * anywhere on an `import` line. A word after a `.` is a member, not a module.
+ */
+export function isModuleReference(text: string, position: Position): boolean {
+  const line = text.split('\n')[position.line] ?? '';
+  let start = position.character;
+  let end = position.character;
+  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
+  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
+  if (start > 0 && line[start - 1] === '.') return false;
+  return line[end] === '.' || /^\s*import\b/.test(line);
+}
+
+/**
+ * If the cursor is on `field` in `a.b.field`, return the identifiers before it
+ * (`['a', 'b']`) and the field name. Null when the word has no `ident.` before it.
+ */
+export function fieldAccessAt(
+  text: string,
+  position: Position,
+): { chain: string[]; field: string } | null {
+  const line = text.split('\n')[position.line];
+  if (line === undefined) return null;
+  const isWord = (c: string | undefined) => c !== undefined && /[A-Za-z0-9_]/.test(c);
+
+  let start = position.character;
+  let end = position.character;
+  while (isWord(line[start - 1])) start--;
+  while (isWord(line[end])) end++;
+  if (start === end) return null;
+
+  const chain: string[] = [];
+  let cursor = start;
+  while (line[cursor - 1] === '.') {
+    let wordStart = cursor - 1;
+    while (isWord(line[wordStart - 1])) wordStart--;
+    const word = line.slice(wordStart, cursor - 1);
+    if (!word) break;
+    chain.unshift(word);
+    cursor = wordStart;
+  }
+  return chain.length > 0 ? { chain, field: line.slice(start, end) } : null;
 }
 
 /**

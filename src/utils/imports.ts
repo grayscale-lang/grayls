@@ -69,10 +69,38 @@ function resolveImportFiles(target: string): string[] {
   }
 }
 
+const isPrivate = (symbol: GraySymbol): boolean => /^private\b/.test(symbol.declaration);
+
 /**
- * Find the file-scope declaration `name` in the local module `moduleName`
- * imported by `text`. Locals and struct functions are indented, so they never match.
+ * Every file-scope declaration an importer can see in the local module
+ * `moduleName`. Locals and struct functions are indented, and `private`
+ * declarations (and private struct functions) are not published.
  */
+export function importedSymbols(
+  text: string,
+  docUri: string,
+  moduleName: string,
+  openText: (fileUri: string) => string | undefined,
+): { fileUri: string; symbol: GraySymbol }[] {
+  const files = resolveLocalImports(text, docUri).get(moduleName)?.files ?? [];
+  const result: { fileUri: string; symbol: GraySymbol }[] = [];
+  for (const fileUri of files) {
+    const source = openText(fileUri) ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
+    const lines = source.split('\n');
+    for (const symbol of scanSymbols(source)) {
+      if (/^\s/.test(lines[symbol.line]) || isPrivate(symbol)) continue;
+      result.push({
+        fileUri,
+        symbol: symbol.kind === 'struct'
+          ? { ...symbol, structFunctions: symbol.structFunctions?.filter(fn => !isPrivate(fn)) }
+          : symbol,
+      });
+    }
+  }
+  return result;
+}
+
+/** Find the public file-scope declaration `name` in the local module `moduleName`. */
 export function findImportedMember(
   text: string,
   docUri: string,
@@ -80,14 +108,7 @@ export function findImportedMember(
   name: string,
   openText: (fileUri: string) => string | undefined,
 ): { fileUri: string; symbol: GraySymbol } | null {
-  const files = resolveLocalImports(text, docUri).get(moduleName)?.files ?? [];
-  for (const fileUri of files) {
-    const source = openText(fileUri) ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
-    const lines = source.split('\n');
-    const symbol = scanSymbols(source).find(s => s.name === name && !/^\s/.test(lines[s.line]));
-    if (symbol) return { fileUri, symbol };
-  }
-  return null;
+  return importedSymbols(text, docUri, moduleName, openText).find(m => m.symbol.name === name) ?? null;
 }
 
 /**

@@ -4,8 +4,9 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { wordAt, moduleWordAt, structFunctionAt, scanSymbols, findDeclaration } from '../utils/symbols';
-import { findImportedMember, findStructFunction } from '../utils/imports';
+import { wordAt, moduleWordAt, structFunctionAt, fieldAccessAt, isModuleReference, scanSymbols, findDeclaration } from '../utils/symbols';
+import { findStructField } from '../utils/fields';
+import { findImportedMember, findStructFunction, resolveLocalImports } from '../utils/imports';
 
 export function provideDefinition(
   params: DefinitionParams,
@@ -41,6 +42,29 @@ export function provideDefinition(
       fileUri => documents.get(fileUri)?.getText(),
     );
     if (member) return findDeclaration(word, [member.symbol], member.fileUri);
+  }
+
+  // `dice.sides`: jump to the struct field.
+  const fieldAccess = fieldAccessAt(text, params.position);
+  if (fieldAccess) {
+    const found = findStructField(
+      text,
+      params.textDocument.uri,
+      params.position,
+      fieldAccess,
+      fileUri => documents.get(fileUri)?.getText(),
+    );
+    if (found) {
+      const position = { line: found.line, character: 0 };
+      return { uri: found.fileUri, range: { start: position, end: position } };
+    }
+  }
+
+  // `types` in `types.Hero`, or on its import line: open the module's file.
+  const localModule = resolveLocalImports(text, params.textDocument.uri).get(word);
+  if (localModule && isModuleReference(text, params.position)) {
+    const start = { line: 0, character: 0 };
+    return { uri: localModule.files[0], range: { start, end: start } };
   }
 
   const symbols = scanSymbols(text);

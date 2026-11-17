@@ -8,7 +8,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
   KEYWORDS, TYPES, BUILTINS, STDLIB_MODULES, ATTRIBUTES, DOCS, MODULE_FUNCTION_DOCS,
 } from '../utils/gray-data';
-import { scanSymbols } from '../utils/symbols';
+import { GraySymbol, scanSymbols } from '../utils/symbols';
+import { importedSymbols } from '../utils/imports';
 
 // Pre-built static completion lists (created once)
 const KEYWORD_ITEMS: CompletionItem[] = KEYWORDS.map(k => ({
@@ -100,6 +101,37 @@ function getLinePrefix(doc: TextDocument, params: CompletionParams): string {
   return line.slice(0, params.position.character);
 }
 
+function symbolItem(sym: GraySymbol): CompletionItem {
+  return {
+    label: sym.name,
+    kind: sym.kind === 'function'
+      ? CompletionItemKind.Function
+      : sym.kind === 'struct'
+        ? CompletionItemKind.Struct
+        : sym.kind === 'enum'
+          ? CompletionItemKind.Enum
+          : sym.kind === 'alias'
+            ? CompletionItemKind.TypeParameter
+            : sym.kind === 'constant'
+              ? CompletionItemKind.Constant
+              : CompletionItemKind.Variable,
+    detail: `${sym.kind} — ${sym.declaration}`,
+  };
+}
+
+// What follows `Type.`: a struct's functions or an enum's variants.
+function typeMemberItems(owner: GraySymbol | undefined): CompletionItem[] {
+  if (owner?.kind === 'struct') return (owner.structFunctions ?? []).map(symbolItem);
+  if (owner?.kind === 'enum') {
+    return (owner.enumMembers ?? []).map(mem => ({
+      label: mem.name,
+      kind: CompletionItemKind.EnumMember,
+      detail: `${owner.name}.${mem.name}`,
+    }));
+  }
+  return [];
+}
+
 export function provideCompletion(
   params: CompletionParams,
   documents: TextDocuments<TextDocument>,
@@ -118,6 +150,27 @@ export function provideCompletion(
   // Context: after `#` → suggest attribute names
   if (/#\w*$/.test(prefix)) {
     return ATTRIBUTE_ITEMS;
+  }
+
+  const openText = (fileUri: string) => documents.get(fileUri)?.getText();
+  const documentText = doc.getText();
+
+  // Context: after `module.Type.` or `Type.` → struct functions or enum variants
+  const typeMatch = prefix.match(/(?<![A-Za-z0-9_.])(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)\.\w*$/);
+  if (typeMatch) {
+    const [, moduleName, typeName] = typeMatch;
+    const owner = moduleName
+      ? importedSymbols(documentText, params.textDocument.uri, moduleName, openText).find(m => m.symbol.name === typeName)?.symbol
+      : scanSymbols(documentText).find(sym => sym.name === typeName && (sym.kind === 'struct' || sym.kind === 'enum'));
+    const items = typeMemberItems(owner);
+    if (items.length > 0) return items;
+  }
+
+  // Context: after `module.` for a local import → its public declarations
+  const localMatch = prefix.match(/(?<![A-Za-z0-9_.])([A-Za-z_]\w*)\.\w*$/);
+  if (localMatch) {
+    const members = importedSymbols(documentText, params.textDocument.uri, localMatch[1], openText);
+    if (members.length > 0) return members.map(m => symbolItem(m.symbol));
   }
 
   // Context: after `module.` → that stdlib module's functions, constants and types
@@ -151,21 +204,7 @@ export function provideCompletion(
     if (variantItems.length > 0) return variantItems;
   }
 
-  const symbolItems: CompletionItem[] = fileSymbols.map(sym => ({
-    label: sym.name,
-    kind: sym.kind === 'function'
-      ? CompletionItemKind.Function
-      : sym.kind === 'struct'
-        ? CompletionItemKind.Struct
-        : sym.kind === 'enum'
-          ? CompletionItemKind.Enum
-          : sym.kind === 'alias'
-            ? CompletionItemKind.TypeParameter
-            : sym.kind === 'constant'
-              ? CompletionItemKind.Constant
-              : CompletionItemKind.Variable,
-    detail: `${sym.kind} — ${sym.declaration}`,
-  }));
+  const symbolItems: CompletionItem[] = fileSymbols.map(symbolItem);
 
   // Context: inside a user function's argument list → offer parameter names as
   // named arguments. Not offered for builtins or stdlib functions, which do
