@@ -5,6 +5,9 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import { resolveLocalImports } from '../utils/imports';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
@@ -114,6 +117,16 @@ function renderVariable(sym: GraySymbol): string {
   return `**${kindLabel}**${typeInfo} \`${sym.name}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
 }
 
+function renderSymbol(sym: GraySymbol): string {
+  switch (sym.kind) {
+    case 'enum':     return renderEnum(sym);
+    case 'struct':   return renderStruct(sym);
+    case 'function': return renderFunction(sym);
+    case 'alias':    return `**Type alias** \`${sym.name}\` → \`${sym.type ?? '?'}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``;
+    default:         return renderVariable(sym);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main hover handler
 // ---------------------------------------------------------------------------
@@ -151,6 +164,15 @@ export function provideHover(
       return {
         contents: { kind: MarkupKind.Markdown, value: MODULE_FUNCTION_DOCS[key] },
       };
+    }
+    // User module: `types.GameState` resolves through the file's local imports.
+    const files = resolveLocalImports(text, params.textDocument.uri).get(modWord.module) ?? [];
+    for (const fileUri of files) {
+      const imported = scanSymbols(documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8'));
+      const member = imported.find(s => s.name === modWord.fn && s.kind !== 'variable');
+      if (member) {
+        return { contents: { kind: MarkupKind.Markdown, value: renderSymbol(member) } };
+      }
     }
     // C interop: any `extern.` member resolves to the imported C header.
     if (modWord.module === 'extern') {
@@ -201,14 +223,7 @@ export function provideHover(
   const sym = symbols.find(s => s.name === word);
   if (!sym) return null;
 
-  let value: string;
-  switch (sym.kind) {
-    case 'enum':     value = renderEnum(sym);    break;
-    case 'struct':   value = renderStruct(sym);  break;
-    case 'function': value = renderFunction(sym); break;
-    case 'alias':    value = `**Type alias** \`${sym.name}\` → \`${sym.type ?? '?'}\`\n\n\`\`\`gray\n${sym.declaration}\n\`\`\``; break;
-    default:         value = renderVariable(sym);
-  }
+  const value = renderSymbol(sym);
 
   return {
     contents: { kind: MarkupKind.Markdown, value },
