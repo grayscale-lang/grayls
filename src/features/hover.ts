@@ -9,13 +9,14 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { LocalImport, resolveLocalImports } from '../utils/imports';
+import { LocalImport, findImportedMember, findStructFunction, resolveLocalImports } from '../utils/imports';
 import { DOCS, MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 import {
   attributeAt,
   implicitVariantAt,
   wordAt,
   moduleWordAt,
+  structFunctionAt,
   compositeTypeAt,
   scanSymbols,
   GraySymbol,
@@ -81,8 +82,11 @@ function renderEnum(sym: GraySymbol): string {
 
 function renderStruct(sym: GraySymbol): string {
   const header = `**Struct** \`${sym.name}\`\n\n`;
+  const functions = sym.structFunctions && sym.structFunctions.length > 0
+    ? `\n\n**Functions**\n\n\`\`\`gray\n${sym.structFunctions.map(f => f.declaration).join('\n')}\n\`\`\``
+    : '';
   if (!sym.structFields || sym.structFields.length === 0) {
-    return header + `\`\`\`gray\n${sym.declaration}\n\`\`\``;
+    return header + `\`\`\`gray\n${sym.declaration}\n\`\`\`` + functions;
   }
   const hasDefaults = sym.structFields.some(f => f.default !== undefined);
 
@@ -90,13 +94,13 @@ function renderStruct(sym: GraySymbol): string {
     const rows = sym.structFields
       .map(f => `| \`${f.name}\` | \`${f.type}\` | ${f.default !== undefined ? `\`${f.default}\`` : '—'} |`)
       .join('\n');
-    return header + `| Field | Type | Default |\n|-------|------|---------|\n${rows}`;
+    return header + `| Field | Type | Default |\n|-------|------|---------|\n${rows}` + functions;
   }
 
   const rows = sym.structFields
     .map(f => `| \`${f.name}\` | \`${f.type}\` |`)
     .join('\n');
-  return header + `| Field | Type |\n|-------|------|\n${rows}`;
+  return header + `| Field | Type |\n|-------|------|\n${rows}` + functions;
 }
 
 function renderFunction(sym: GraySymbol): string {
@@ -200,6 +204,21 @@ export function provideHover(
     };
   }
 
+  // 2b. Struct function: `Dice.create`, `types.Dice.create`
+  const structFn = structFunctionAt(text, params.position);
+  if (structFn) {
+    const found = findStructFunction(
+      text,
+      params.textDocument.uri,
+      structFn,
+      fileUri => documents.get(fileUri)?.getText(),
+    );
+    if (found) {
+      const qualified = { ...found.symbol, name: `${structFn.type}.${found.symbol.name}` };
+      return { contents: { kind: MarkupKind.Markdown, value: renderFunction(qualified) } };
+    }
+  }
+
   // 3. Module function: arrays.append, math.sqrt, etc.
   const modWord = moduleWordAt(text, params.position);
   if (modWord) {
@@ -210,17 +229,15 @@ export function provideHover(
       };
     }
     // User module: `types.GameState` resolves through the file's local imports.
-    const files = resolveLocalImports(text, params.textDocument.uri).get(modWord.module)?.files ?? [];
-    for (const fileUri of files) {
-      const importedText = documents.get(fileUri)?.getText() ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
-      // File-scope declarations only: locals and struct functions are indented.
-      const importedLines = importedText.split('\n');
-      const member = scanSymbols(importedText).find(
-        s => s.name === modWord.fn && !/^\s/.test(importedLines[s.line]),
-      );
-      if (member) {
-        return { contents: { kind: MarkupKind.Markdown, value: renderSymbol(member) } };
-      }
+    const member = findImportedMember(
+      text,
+      params.textDocument.uri,
+      modWord.module,
+      modWord.fn,
+      fileUri => documents.get(fileUri)?.getText(),
+    );
+    if (member) {
+      return { contents: { kind: MarkupKind.Markdown, value: renderSymbol(member.symbol) } };
     }
     // C interop: any `extern.` member resolves to the imported C header.
     if (modWord.module === 'extern') {

@@ -30,6 +30,8 @@ export interface GraySymbol {
   type?: string;           // parsed Grayscale type for mut/const declarations
   enumMembers?: EnumMember[];
   structFields?: StructField[];
+  /** Functions declared inside a struct body. */
+  structFunctions?: GraySymbol[];
   params?: FuncParam[];
   /** Return signature as written, e.g. `i64` or `(quotient i64, remainder i64)`. */
   returns?: string;
@@ -366,6 +368,31 @@ function scanEnumMembers(body: string[]): EnumMember[] {
   return members;
 }
 
+function scanStructFunctions(body: string[], firstLine: number): GraySymbol[] {
+  const functions: GraySymbol[] = [];
+  // Depth relative to the struct body, so nested bodies are skipped.
+  let depth = 0;
+  body.forEach((line, offset) => {
+    const m = depth === 0 ? FUNC_PATTERN.exec(line) : null;
+    if (m) {
+      const declaration = line.trim().replace(/\/\/.*$/, '').trim().replace(/\s*\{.*$/, '');
+      const sig = parseSignature(line);
+      functions.push({
+        name: m[1],
+        kind: 'function',
+        line: firstLine + offset,
+        char: line.indexOf(m[1]),
+        declaration,
+        params: sig.params,
+        returns: sig.returns,
+      });
+    }
+    depth += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+    if (depth < 0) depth = 0;
+  });
+  return functions;
+}
+
 function scanStructFields(body: string[]): StructField[] {
   const fields: StructField[] = [];
   // Depth relative to the struct body, so nested struct-function bodies are skipped.
@@ -490,7 +517,7 @@ export function scanSymbols(text: string): GraySymbol[] {
 
       if ((m = STRUCT_PATTERN.exec(line))) {
         const name = m[1];
-        const { content } = scanBlock(lines, i);
+        const { content, endLine } = scanBlock(lines, i);
         const fields = scanStructFields(content);
         symbols.push({
           name,
@@ -499,6 +526,7 @@ export function scanSymbols(text: string): GraySymbol[] {
           char: line.indexOf(name),
           declaration: sourceLines[i].trim(),
           structFields: fields,
+          structFunctions: scanStructFunctions(content, endLine === i ? i : i + 1),
         });
       } else if ((m = ENUM_PATTERN.exec(line))) {
         const name = m[1];
@@ -676,6 +704,38 @@ export function wordAt(text: string, position: Position): string {
   while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
 
   return line.slice(start, end);
+}
+
+/**
+ * If the cursor is on `fn` in `Type.fn(...)` or `module.Type.fn(...)`, return
+ * the parts. Returns null when the word is not preceded by a `Type.` qualifier.
+ */
+export function structFunctionAt(
+  text: string,
+  position: Position,
+): { module?: string; type: string; fn: string } | null {
+  const line = text.split('\n')[position.line];
+  if (line === undefined) return null;
+  const isWord = (c: string | undefined) => c !== undefined && /[A-Za-z0-9_]/.test(c);
+
+  let start = position.character;
+  let end = position.character;
+  while (isWord(line[start - 1])) start--;
+  while (isWord(line[end])) end++;
+  if (start === end || line[start - 1] !== '.') return null;
+
+  let typeStart = start - 1;
+  while (isWord(line[typeStart - 1])) typeStart--;
+  const type = line.slice(typeStart, start - 1);
+  if (!type) return null;
+
+  let module: string | undefined;
+  if (line[typeStart - 1] === '.') {
+    let moduleStart = typeStart - 1;
+    while (isWord(line[moduleStart - 1])) moduleStart--;
+    module = line.slice(moduleStart, typeStart - 1) || undefined;
+  }
+  return { module, type, fn: line.slice(start, end) };
 }
 
 /**

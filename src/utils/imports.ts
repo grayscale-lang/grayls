@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { GraySymbol, scanSymbols } from './symbols';
 
 const SOURCE_EXTENSIONS = ['.gray', '.grayscale'];
 
@@ -66,4 +67,48 @@ function resolveImportFiles(target: string): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Find the file-scope declaration `name` in the local module `moduleName`
+ * imported by `text`. Locals and struct functions are indented, so they never match.
+ */
+export function findImportedMember(
+  text: string,
+  docUri: string,
+  moduleName: string,
+  name: string,
+  openText: (fileUri: string) => string | undefined,
+): { fileUri: string; symbol: GraySymbol } | null {
+  const files = resolveLocalImports(text, docUri).get(moduleName)?.files ?? [];
+  for (const fileUri of files) {
+    const source = openText(fileUri) ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
+    const lines = source.split('\n');
+    const symbol = scanSymbols(source).find(s => s.name === name && !/^\s/.test(lines[s.line]));
+    if (symbol) return { fileUri, symbol };
+  }
+  return null;
+}
+
+/**
+ * Find the struct function `fn` of `Type.fn` (local struct) or `module.Type.fn`
+ * (struct from a local import).
+ */
+export function findStructFunction(
+  text: string,
+  docUri: string,
+  ref: { module?: string; type: string; fn: string },
+  openText: (fileUri: string) => string | undefined,
+): { fileUri: string; symbol: GraySymbol } | null {
+  let owner: { fileUri: string; symbol: GraySymbol } | null;
+  if (ref.module) {
+    owner = findImportedMember(text, docUri, ref.module, ref.type, openText);
+  } else {
+    const local = scanSymbols(text).find(s => s.name === ref.type && s.kind === 'struct');
+    owner = local ? { fileUri: docUri, symbol: local } : null;
+  }
+  const symbol = owner?.symbol.kind === 'struct'
+    ? owner.symbol.structFunctions?.find(f => f.name === ref.fn)
+    : undefined;
+  return owner && symbol ? { fileUri: owner.fileUri, symbol } : null;
 }
