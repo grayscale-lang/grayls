@@ -7,6 +7,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { wordAt, moduleWordAt, structFunctionAt, fieldAccessAt, isModuleReference, scanSymbols, findDeclaration } from '../utils/symbols';
 import { findStructField } from '../utils/fields';
 import { findImportedMember, findStructFunction, resolveLocalImports } from '../utils/imports';
+import { findUsedName } from '../utils/using';
+import { MODULE_FUNCTION_DOCS } from '../utils/gray-data';
 
 export function provideDefinition(
   params: DefinitionParams,
@@ -65,6 +67,20 @@ export function provideDefinition(
   if (localModule && isModuleReference(text, params.position)) {
     const start = { line: 0, character: 0 };
     return { uri: localModule.files[0], range: { start, end: start } };
+  }
+
+  // A bare name from `using` or `import and use`. A stdlib member has no source
+  // to jump to.
+  const used = findUsedName(
+    text,
+    params.textDocument.uri,
+    params.position,
+    word,
+    key => key in MODULE_FUNCTION_DOCS,
+    fileUri => documents.get(fileUri)?.getText(),
+  );
+  if (used) {
+    return 'stdlibKey' in used ? null : findDeclaration(word, [used.symbol], used.fileUri);
   }
 
   const symbols = scanSymbols(text);

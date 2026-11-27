@@ -24,6 +24,7 @@ import {
   scanSymbols,
   GraySymbol,
 } from '../utils/symbols';
+import { findUsedName } from '../utils/using';
 
 // ---------------------------------------------------------------------------
 // Composite type rendering  ([T], [[T]], [T,N], map[K:V])
@@ -299,6 +300,20 @@ export function provideHover(
     return {
       contents: { kind: MarkupKind.Markdown, value: DOCS[word] },
     };
+  }
+
+  // 6b. Bare name from `using` or `import and use`
+  const used = findUsedName(
+    text,
+    params.textDocument.uri,
+    params.position,
+    word,
+    key => key in MODULE_FUNCTION_DOCS,
+    fileUri => documents.get(fileUri)?.getText(),
+  );
+  if (used) {
+    const value = 'stdlibKey' in used ? MODULE_FUNCTION_DOCS[used.stdlibKey] : renderSymbol(used.symbol);
+    return { contents: { kind: MarkupKind.Markdown, value } };
   }
 
   // 7. User-defined symbols

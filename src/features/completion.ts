@@ -10,6 +10,8 @@ import {
 } from '../utils/gray-data';
 import { GraySymbol, scanSymbols } from '../utils/symbols';
 import { importedSymbols } from '../utils/imports';
+import { usedModulesAt } from '../utils/using';
+import { fileScopeSymbols } from '../utils/scope';
 
 // Pre-built static completion lists (created once)
 const KEYWORD_ITEMS: CompletionItem[] = KEYWORDS.map(k => ({
@@ -224,5 +226,14 @@ export function provideCompletion(
     }
   }
 
-  return [...namedItems, ...STATIC_ITEMS, ...symbolItems];
+  // Bare names from `using` and `import and use`; a file-scope declaration of
+  // this file hides the same name.
+  const declaredHere = new Set(fileScopeSymbols(text).map(sym => sym.name));
+  const usedItems = usedModulesAt(text, params.position)
+    .flatMap(({ name, isStdlib }) => isStdlib
+      ? MODULE_MEMBER_ITEMS.get(name) ?? []
+      : importedSymbols(text, params.textDocument.uri, name, openText).map(m => symbolItem(m.symbol)))
+    .filter(item => !declaredHere.has(item.label));
+
+  return [...namedItems, ...STATIC_ITEMS, ...symbolItems, ...usedItems];
 }

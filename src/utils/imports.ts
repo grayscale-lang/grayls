@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { GraySymbol, scanSymbols } from './symbols';
+import { fileScopeSymbols } from './scope';
 
 const SOURCE_EXTENSIONS = ['.gray', '.grayscale'];
 
@@ -28,8 +29,9 @@ export function resolveLocalImports(text: string, docUri: string): Map<string, L
   if (!docUri.startsWith('file:')) return modules;
   const baseDir = path.dirname(fileURLToPath(docUri));
 
-  for (const rawLine of text.split('\n')) {
-    const line = rawLine.replace(/\/\/.*$/, '').trim();
+  const statements = text.split('\n').flatMap(line => line.replace(/\/\/.*$/, '').split(';'));
+  for (const statement of statements) {
+    const line = statement.trim();
     const match = line.match(/^import\s+(?:and\s+use\s+)?(.+)$/);
     if (!match) continue;
 
@@ -87,7 +89,7 @@ export function importedSymbols(
   for (const fileUri of files) {
     const source = openText(fileUri) ?? fs.readFileSync(fileURLToPath(fileUri), 'utf8');
     const lines = source.split('\n');
-    for (const symbol of scanSymbols(source)) {
+    for (const symbol of fileScopeSymbols(source)) {
       if (/^\s/.test(lines[symbol.line]) || isPrivate(symbol)) continue;
       result.push({
         fileUri,
