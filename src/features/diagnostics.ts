@@ -22,6 +22,7 @@ const DIAG_PATTERN =
 
 const SOURCE_FILE = /\.(gray|grayscale)$/;
 const MAIN_DECLARATION = /^[ \t]*do[ \t]+main[ \t]*\(/m;
+const CHECK_TIMEOUT_MS = 10_000;
 
 function parseDiagnostics(output: string, checkedFile: string): Diagnostic[] {
   const diags: Diagnostic[] = [];
@@ -52,15 +53,15 @@ function parseDiagnostics(output: string, checkedFile: string): Diagnostic[] {
   return diags;
 }
 
-function runGrayCheck(file: string): string {
-  // 'gray check' type-checks only. Bare 'gray <file>' would compile AND run
-  // the program, executing its I/O on every keystroke.
-  const result = cp.spawnSync('gray', ['check', file], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  });
-  return (result.stdout ?? '') + (result.stderr ?? '');
+// The files written for one run of 'gray check'.
+interface CheckFiles {
+  target: string;   // the path handed to 'gray check'
+  buffer: string;   // the copy of the document being checked
+  remove(): void;
 }
+
+// Numbers each run so overlapping checks never share a temporary path.
+let runCount = 0;
 
 // The source files beside `file` that form one directory module with it, or
 // null when the directory holds a program: a file declaring main.
@@ -78,28 +79,31 @@ function moduleSiblings(file: string, text: string): string[] | null {
 // Check the buffer together with the rest of its directory module. A copy of
 // the module, holding the buffer, goes in a hidden directory next to the real
 // one so relative imports resolve at the same depth.
-function runModuleCheck(text: string, file: string, siblings: string[]): Diagnostic[] {
+function writeModuleCopy(text: string, file: string, siblings: string[], name: string): CheckFiles {
   const parent = path.dirname(path.dirname(file));
-  const copyDir = path.join(parent, `.gray-lsp-${process.pid}-module`);
-  const tmpFile = path.join(copyDir, path.basename(file));
+  const copyDir = path.join(parent, `${name}-module`);
+  const buffer = path.join(copyDir, path.basename(file));
+  const remove = () => fs.rmSync(copyDir, { recursive: true, force: true });
   try {
     fs.mkdirSync(copyDir, { recursive: true });
     for (const sibling of siblings) {
       fs.copyFileSync(sibling, path.join(copyDir, path.basename(sibling)));
     }
-    fs.writeFileSync(tmpFile, text, 'utf8');
-    return parseDiagnostics(runGrayCheck(copyDir), tmpFile);
-  } finally {
-    fs.rmSync(copyDir, { recursive: true, force: true });
+    fs.writeFileSync(buffer, text, 'utf8');
+  } catch (error) {
+    remove();
+    throw error;
   }
+  return { target: copyDir, buffer, remove };
 }
 
-function runCheck(text: string, uri: string): Diagnostic[] {
+function writeCheckFiles(text: string, uri: string): CheckFiles | null {
+  const name = `.gray-lsp-${process.pid}-${++runCount}`;
   if (uri.startsWith('file:')) {
     try {
       const file = fileURLToPath(uri);
       const siblings = moduleSiblings(file, text);
-      if (siblings) return runModuleCheck(text, file, siblings);
+      if (siblings) return writeModuleCopy(text, file, siblings, name);
     } catch {
       // The module cannot be read or copied: check the buffer on its own.
     }
@@ -108,46 +112,106 @@ function runCheck(text: string, uri: string): Diagnostic[] {
   // Write the buffer to a hidden file next to the document so relative imports
   // resolve against its real directory (handles unsaved buffers too). Hidden
   // files are skipped by directory imports. Fall back to the temp directory.
-  const fileName = `.gray-lsp-${process.pid}.gray`;
-  let tmpFile = path.join(os.tmpdir(), fileName);
-  if (uri.startsWith('file:')) {
-    tmpFile = path.join(path.dirname(fileURLToPath(uri)), fileName);
+  const directories = [os.tmpdir()];
+  if (uri.startsWith('file:')) directories.unshift(path.dirname(fileURLToPath(uri)));
+  for (const directory of directories) {
+    const buffer = path.join(directory, `${name}.gray`);
+    try {
+      fs.writeFileSync(buffer, text, 'utf8');
+    } catch {
+      continue;
+    }
+    return { target: buffer, buffer, remove: () => fs.rmSync(buffer, { force: true }) };
+  }
+  return null;
+}
+
+// 'gray' runs the compiler as a child process, so stopping a check means
+// stopping the whole tree: the process group, or taskkill on Windows.
+function killTree(child: cp.ChildProcess): void {
+  if (child.pid === undefined) return;
+  if (process.platform === 'win32') {
+    cp.spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+    return;
   }
   try {
-    fs.writeFileSync(tmpFile, text, 'utf8');
-  } catch {
-    tmpFile = path.join(os.tmpdir(), fileName);
-    try {
-      fs.writeFileSync(tmpFile, text, 'utf8');
-    } catch {
-      return [];
-    }
+    process.kill(-child.pid, 'SIGKILL');
+  } catch { /* already exited */ }
+}
+
+// Starts checking the buffer and returns a function that cancels the check.
+// 'done' is not called for a cancelled check.
+function startCheck(
+  text: string,
+  uri: string,
+  done: (diagnostics: Diagnostic[]) => void,
+): () => void {
+  const files = writeCheckFiles(text, uri);
+  if (!files) {
+    done([]);
+    return () => {};
   }
 
-  try {
-    return parseDiagnostics(runGrayCheck(tmpFile), tmpFile);
-  } catch {
-    return [];
-  } finally {
-    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+  // 'gray check' type-checks only. Bare 'gray <file>' would compile AND run
+  // the program, executing its I/O on every keystroke.
+  const child = cp.spawn('gray', ['check', files.target], {
+    // A process group of its own, for killTree.
+    detached: process.platform !== 'win32',
+  });
+  let output = '';
+  let isFinished = false;
+  const timeout = setTimeout(() => killTree(child), CHECK_TIMEOUT_MS);
+
+  function finish(): void {
+    isFinished = true;
+    clearTimeout(timeout);
+    try { files!.remove(); } catch { /* ignore */ }
   }
+
+  for (const stream of [child.stdout, child.stderr]) {
+    stream?.setEncoding('utf8');
+    stream?.on('data', (chunk: string) => { output += chunk; });
+  }
+  // A failed spawn emits 'error' and then 'close'.
+  child.on('error', () => {});
+  child.on('close', () => {
+    if (isFinished) return;
+    finish();
+    done(parseDiagnostics(output, files.buffer));
+  });
+
+  return () => {
+    if (isFinished) return;
+    killTree(child);
+    finish();
+  };
 }
 
 export function registerDiagnostics(
   connection: Connection,
   documents: TextDocuments<TextDocument>,
 ): void {
+  // Cancel function of the running check per document URI
+  const running = new Map<string, () => void>();
+
+  function cancel(uri: string): void {
+    const timer = timers.get(uri);
+    if (timer) { clearTimeout(timer); timers.delete(uri); }
+    running.get(uri)?.();
+    running.delete(uri);
+  }
+
   function validate(doc: TextDocument): void {
     const uri = doc.uri;
-    const existing = timers.get(uri);
-    if (existing) clearTimeout(existing);
+    cancel(uri);
 
     timers.set(
       uri,
       setTimeout(() => {
         timers.delete(uri);
-        const diags = runCheck(doc.getText(), uri);
-        connection.sendDiagnostics({ uri, diagnostics: diags });
+        running.set(uri, startCheck(doc.getText(), uri, (diagnostics) => {
+          connection.sendDiagnostics({ uri, diagnostics });
+        }));
       }, 300),
     );
   }
@@ -157,9 +221,15 @@ export function registerDiagnostics(
   documents.onDidChangeContent((e: TextDocumentChangeEvent<TextDocument>) => validate(e.document));
 
   documents.onDidClose((e: TextDocumentChangeEvent<TextDocument>) => {
-    const t = timers.get(e.document.uri);
-    if (t) { clearTimeout(t); timers.delete(e.document.uri); }
+    cancel(e.document.uri);
     // Clear diagnostics when file is closed
     connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
   });
+
+  // Stop running checks and remove their files when the server exits. A signal
+  // ends the process without an 'exit' event unless it is turned into one.
+  process.on('exit', () => running.forEach(stop => stop()));
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(signal, () => process.exit());
+  }
 }
