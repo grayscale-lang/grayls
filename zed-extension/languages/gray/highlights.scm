@@ -313,5 +313,11 @@
   .
   (identifier) @type.builtin)
 
+; Module-qualified constant as an array size: [i64, lib.MAX]
+(qualified_constant
+  (identifier) @namespace
+  .
+  (identifier) @constant)
+
 ; Function type: func(int, int) -> int
 (func_type "func" @type.builtin)

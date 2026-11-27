@@ -8,7 +8,7 @@ repository = "https://github.com/grayscale-lang/Grayscale"
 
 [grammars.gray]
 repository = "https://github.com/grayscale-lang/tree-sitter-gray"
-rev = "a4b71282ed8539a9d85744a3c5cdb50cc23c24cb"
+rev = "d2cbb61e2b7d15cdbe30e6d94ae1233c84082324"
 
 [language_servers.grayls]
 language = "Grayscale"
