@@ -1,6 +1,6 @@
 name = "Grayscale"
 grammar = "gray"
-path_suffixes = ["gray"]
+path_suffixes = ["gray", "grayscale"]
 line_comments = ["//"]
 block_comments = [["/*", "*/"]]
 autoclose_before = ";:.,=}])>"

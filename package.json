@@ -19,7 +19,7 @@
       {
         "id": "gray",
         "aliases": ["Grayscale", "gray"],
-        "extensions": [".gray"],
+        "extensions": [".gray", ".grayscale"],
         "configuration": "./language-configuration.json"
       }
     ],

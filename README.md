@@ -35,7 +35,7 @@ gray
 
 1. Download `grayls.vsix` from the [latest release](https://github.com/grayscale-lang/grayls/releases).
 2. In VS Code, open **Extensions → ⋯ → Install from VSIX…** and select the file. Or run `code --install-extension grayls.vsix`.
-3. Open a `.gray` file. The extension activates automatically.
+3. Open a `.gray` or `.grayscale` file. The extension activates automatically.
 
 To update, download the newest `grayls.vsix` and install it the same way, then reload VS Code (`Cmd+Shift+P` → **Reload Window**).
 
@@ -51,9 +51,9 @@ Zed needs a small dev extension (the `zed-extension/` folder of this repo) for t
    ```
 2. In Zed, press `Cmd+Shift+P` → **"zed: install dev extension"** and select the `zed-extension/` folder inside the clone.
 3. Wait ~30 seconds for Zed to compile the extension.
-4. Open a `.gray` file.
+4. Open a `.gray` or `.grayscale` file.
 
-The first time you open a `.gray` file, the extension downloads `server.js` from the latest [grayls release](https://github.com/grayscale-lang/grayls/releases) and runs it with your `node`. Node.js v18 or later must be on your `PATH`. Later releases are picked up automatically; you only reinstall the extension if the `zed-extension/` folder changes.
+The first time you open one, the extension downloads `server.js` from the latest [grayls release](https://github.com/grayscale-lang/grayls/releases) and runs it with your `node`. Node.js v18 or later must be on your `PATH`. Later releases are picked up automatically; you only reinstall the extension if the `zed-extension/` folder changes.
 
 To confirm the server is running: `Cmd+Shift+P` → **"zed: open log"**, search for `grayls`.
 
